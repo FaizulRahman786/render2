@@ -4,18 +4,23 @@ services:
     env: node
     plan: free
     region: oregon
-    buildCommand: npm run build
-    startCommand: npm start
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --prefix apps/backend run build
+    startCommand: pnpm --prefix apps/backend start
+    healthCheckPath: /api/health
     repo: https://github.com/h77107405-netizen/second
     branch: main
-    root: apps/backend
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: '3001'
       - key: DATABASE_URL
-        fromDatabase:
-          name: postgres
-      - key: JWT_SECRET
-        generate: true
+        sync: false
+      - key: AUTH_PROVIDER
+        value: supabase
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false

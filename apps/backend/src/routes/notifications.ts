@@ -5,28 +5,22 @@ import { db, schema } from '../db/index.js';
 import { authenticate } from '../middleware/auth.js';
 import { asyncHandler, ApiError } from '../middleware/error.js';
 import { emitToUsers, registerSseClient } from '../ws/wsManager.js';
-import { verifyToken } from '../utils/jwt.js';
 
 const router: ExpressRouter = Router();
 
-// ── SSE stream (auth via query param since EventSource has no custom headers) ──
+router.use(authenticate);
+
+// SSE stream. The frontend uses fetch with Authorization headers so bearer
+// tokens are not exposed in URLs.
 router.get('/stream', (req, res) => {
-  const token = req.query.token as string;
-  if (!token) { res.status(401).end(); return; }
-
-  const user = verifyToken(token);
-  if (!user) { res.status(401).end(); return; }
-
-  // Set SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no'); // disable Nginx/proxy buffering
+  res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
-  const cleanup = registerSseClient(user.id, user.role, res);
+  const cleanup = registerSseClient(req.user!.id, req.user!.role, res);
 
-  // Send a heartbeat comment every 20s to keep the connection alive through proxies
   const heartbeat = setInterval(() => {
     try { res.write(': heartbeat\n\n'); } catch { clearInterval(heartbeat); }
   }, 20000);
@@ -36,8 +30,6 @@ router.get('/stream', (req, res) => {
     cleanup();
   });
 });
-
-router.use(authenticate);
 
 router.get('/', asyncHandler(async (req, res) => {
   const { type, before, limit: limitStr } = req.query as Record<string, string>;
@@ -67,6 +59,19 @@ router.get('/unread-count', asyncHandler(async (req, res) => {
   res.json({ success: true, data: { count: total } });
 }));
 
+// NOTE: /read-all MUST be defined before /:id/read — otherwise Express matches
+// the literal string "read-all" as the :id parameter and Postgres throws a UUID cast error.
+router.patch('/read-all', asyncHandler(async (req, res) => {
+  await db
+    .update(schema.notifications)
+    .set({ isRead: true })
+    .where(and(
+      eq(schema.notifications.receiverId, req.user!.id),
+      eq(schema.notifications.isRead, false),
+    ));
+  res.json({ success: true, message: 'All marked as read' });
+}));
+
 router.patch('/:id/read', asyncHandler(async (req, res) => {
   const notificationId = String(req.params.id);
   await db
@@ -77,17 +82,6 @@ router.patch('/:id/read', asyncHandler(async (req, res) => {
       eq(schema.notifications.receiverId, req.user!.id),
     ));
   res.json({ success: true, message: 'Marked as read' });
-}));
-
-router.patch('/read-all', asyncHandler(async (req, res) => {
-  await db
-    .update(schema.notifications)
-    .set({ isRead: true })
-    .where(and(
-      eq(schema.notifications.receiverId, req.user!.id),
-      eq(schema.notifications.isRead, false),
-    ));
-  res.json({ success: true, message: 'All marked as read' });
 }));
 
 router.post('/send', asyncHandler(async (req, res) => {
@@ -105,7 +99,6 @@ router.post('/send', asyncHandler(async (req, res) => {
     }))
   ).returning();
 
-  // Push real-time SSE event to all recipients
   const wsEvent = { id: inserted[0]?.id, title, message, type, link, createdAt: new Date().toISOString(), isRead: false };
   emitToUsers(receiverIds, wsEvent);
 

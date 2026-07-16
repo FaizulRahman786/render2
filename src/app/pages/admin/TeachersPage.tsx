@@ -24,7 +24,7 @@ export const TeachersPage: React.FC = () => {
   const [limit, setLimit] = useState(DEFAULT_LIMIT);
   const [addOpen, setAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: 'Teacher@123', qualification: '', experience: '', specialization: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', qualification: '', experience: '', specialization: '' });
   const searchDebounce = useRef<ReturnType<typeof setTimeout>>();
 
   const load = useCallback((p = page, l = limit, s = search, st = statusFilter) => {
@@ -63,7 +63,7 @@ export const TeachersPage: React.FC = () => {
       await api.admin.createTeacher(form);
       toast.success('Teacher added successfully');
       setAddOpen(false);
-      setForm({ name: '', email: '', phone: '', password: 'Teacher@123', qualification: '', experience: '', specialization: '' });
+      setForm({ name: '', email: '', phone: '', qualification: '', experience: '', specialization: '' });
       load(1, limit, search, statusFilter);
       setPage(1);
     } catch (err: any) { toast.error(err.message); } finally { setSaving(false); }
@@ -101,7 +101,6 @@ export const TeachersPage: React.FC = () => {
                   <div><Label>Full Name *</Label><Input value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} required /></div>
                   <div><Label>Email *</Label><Input type="email" value={form.email} onChange={(e) => setForm({...form, email: e.target.value})} required /></div>
                   <div><Label>Phone *</Label><Input value={form.phone} onChange={(e) => setForm({...form, phone: e.target.value})} required /></div>
-                  <div><Label>Password *</Label><Input value={form.password} onChange={(e) => setForm({...form, password: e.target.value})} required /></div>
                   <div><Label>Qualification</Label><Input value={form.qualification} onChange={(e) => setForm({...form, qualification: e.target.value})} /></div>
                   <div><Label>Experience (years)</Label><Input type="number" value={form.experience} onChange={(e) => setForm({...form, experience: e.target.value})} /></div>
                   <div className="col-span-2"><Label>Specialization</Label><Input value={form.specialization} onChange={(e) => setForm({...form, specialization: e.target.value})} /></div>

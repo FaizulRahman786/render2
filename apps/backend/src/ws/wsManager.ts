@@ -12,10 +12,22 @@ interface SseClient {
 
 const clients = new Map<string, Set<SseClient>>();
 
+// Maximum concurrent SSE connections per user (handles multiple tabs)
+const MAX_CONNECTIONS_PER_USER = 5;
+
 function addClient(userId: string, role: string, res: Response): SseClient {
   const client: SseClient = { res, userId, role };
   if (!clients.has(userId)) clients.set(userId, new Set());
-  clients.get(userId)!.add(client);
+  const userClients = clients.get(userId)!;
+
+  // If the user already has the maximum number of connections, close the oldest one
+  if (userClients.size >= MAX_CONNECTIONS_PER_USER) {
+    const [oldest] = userClients;
+    try { oldest.res.end(); } catch {}
+    userClients.delete(oldest);
+  }
+
+  userClients.add(client);
   return client;
 }
 

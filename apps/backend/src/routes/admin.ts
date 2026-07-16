@@ -2,7 +2,6 @@ import { Router } from 'express';
 import type { Router as ExpressRouter } from 'express';
 import { eq, desc, count, sql, and, ne, ilike, or, asc, inArray } from 'drizzle-orm';
 import { db, schema } from '../db/index.js';
-import { hashPassword } from '../utils/password.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { asyncHandler, ApiError } from '../middleware/error.js';
 import { emitToUser, emitToUsers } from '../ws/wsManager.js';
@@ -98,10 +97,9 @@ router.get('/students', asyncHandler(async (req, res) => {
 }));
 
 router.post('/students', asyncHandler(async (req, res) => {
-  const { name, email, phone, password, parentName, parentPhone, address, courseId } = req.body;
-  if (!name || !email || !phone || !password) throw new ApiError(400, 'name, email, phone, and password are required');
-  const hashed = await hashPassword(password);
-  const [user] = await db.insert(schema.users).values({ name, email: email.toLowerCase(), phone, password: hashed, role: 'student' }).returning();
+  const { name, email, phone, parentName, parentPhone, address, courseId } = req.body;
+  if (!name || !email || !phone) throw new ApiError(400, 'name, email, and phone are required');
+  const [user] = await db.insert(schema.users).values({ name, email: email.toLowerCase(), phone, password: '', role: 'student' }).returning();
   await db.insert(schema.studentProfiles).values({ userId: user.id, parentName, parentPhone, address, courseId });
   await logAudit(req.user!.id, req.user!.role, 'CREATE', 'student', user.id, name, req.ip);
   res.status(201).json({ success: true, data: { id: user.id, name: user.name, email: user.email } });
@@ -183,10 +181,9 @@ router.get('/teachers/all', asyncHandler(async (req, res) => {
 }));
 
 router.post('/teachers', asyncHandler(async (req, res) => {
-  const { name, email, phone, password, qualification, experience, specialization } = req.body;
-  if (!name || !email || !phone || !password) throw new ApiError(400, 'name, email, phone, and password are required');
-  const hashed = await hashPassword(password);
-  const [user] = await db.insert(schema.users).values({ name, email: email.toLowerCase(), phone, password: hashed, role: 'teacher' }).returning();
+  const { name, email, phone, qualification, experience, specialization } = req.body;
+  if (!name || !email || !phone) throw new ApiError(400, 'name, email, and phone are required');
+  const [user] = await db.insert(schema.users).values({ name, email: email.toLowerCase(), phone, password: '', role: 'teacher' }).returning();
   await db.insert(schema.teacherProfiles).values({ userId: user.id, qualification, experience: experience ? parseInt(experience) : null, specialization });
   await logAudit(req.user!.id, req.user!.role, 'CREATE', 'teacher', user.id, name, req.ip);
   res.status(201).json({ success: true, data: { id: user.id, name: user.name, email: user.email } });
@@ -575,6 +572,9 @@ router.post('/fees', asyncHandler(async (req, res) => {
   if (!studentId || !totalAmount) throw new ApiError(400, 'studentId and totalAmount are required');
   const disc = parseFloat(discount || '0');
   const total = parseFloat(totalAmount);
+  if (isNaN(total) || total <= 0) throw new ApiError(400, 'totalAmount must be a positive number');
+  if (isNaN(disc) || disc < 0) throw new ApiError(400, 'discount must be a non-negative number');
+  if (disc > total) throw new ApiError(400, 'discount cannot exceed totalAmount');
   const final = total - disc;
   const [fee] = await db.insert(schema.fees).values({
     studentId, courseId, totalAmount: total.toString(), discount: disc.toString(), finalAmount: final.toString(), dueDate,
@@ -586,6 +586,11 @@ router.post('/fees', asyncHandler(async (req, res) => {
 router.post('/fees/:feeId/payments', asyncHandler(async (req, res) => {
   const { amount, paymentMode, transactionId, receiptNumber, notes } = req.body;
   const feeId = String(req.params.feeId);
+  if (!amount || !paymentMode) throw new ApiError(400, 'amount and paymentMode are required');
+  const parsedAmount = parseFloat(amount);
+  if (isNaN(parsedAmount) || parsedAmount <= 0) throw new ApiError(400, 'amount must be a positive number');
+  const allowedModes = ['cash', 'upi', 'card', 'net_banking', 'other'];
+  if (!allowedModes.includes(paymentMode)) throw new ApiError(400, `paymentMode must be one of: ${allowedModes.join(', ')}`);
   const [fee] = await db.select().from(schema.fees).where(eq(schema.fees.id, feeId)).limit(1);
   if (!fee) throw new ApiError(404, 'Fee record not found');
   const [payment] = await db.insert(schema.payments).values({
@@ -689,6 +694,11 @@ router.delete('/subjects/:subjectId/chapters/:chapterId', asyncHandler(async (re
 router.post('/notifications/broadcast', asyncHandler(async (req, res) => {
   const { title, message, type = 'info', targetRole, batchId } = req.body;
   if (!title || !message) throw new ApiError(400, 'title and message required');
+  // Prevent targeting admin accounts — broadcasts are for students/teachers only
+  const allowedTargetRoles = ['student', 'teacher'];
+  if (targetRole && !allowedTargetRoles.includes(targetRole)) {
+    throw new ApiError(400, `targetRole must be one of: ${allowedTargetRoles.join(', ')}`);
+  }
 
   let targetUsers: { id: string }[] = [];
   if (batchId) {

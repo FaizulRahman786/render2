@@ -24,7 +24,7 @@ export const StudentsPage: React.FC = () => {
   const [limit, setLimit] = useState(DEFAULT_LIMIT);
   const [addOpen, setAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: 'Student@123', parentName: '', parentPhone: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', parentName: '', parentPhone: '' });
   const searchDebounce = useRef<ReturnType<typeof setTimeout>>();
 
   const load = useCallback((p = page, l = limit, s = search, st = statusFilter) => {
@@ -63,7 +63,7 @@ export const StudentsPage: React.FC = () => {
       await api.admin.createStudent(form);
       toast.success('Student added successfully');
       setAddOpen(false);
-      setForm({ name: '', email: '', phone: '', password: 'Student@123', parentName: '', parentPhone: '' });
+      setForm({ name: '', email: '', phone: '', parentName: '', parentPhone: '' });
       load(1, limit, search, statusFilter);
       setPage(1);
     } catch (err: any) {
@@ -117,7 +117,6 @@ export const StudentsPage: React.FC = () => {
                   <div><Label>Full Name *</Label><Input value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} required /></div>
                   <div><Label>Email *</Label><Input type="email" value={form.email} onChange={(e) => setForm({...form, email: e.target.value})} required /></div>
                   <div><Label>Phone *</Label><Input value={form.phone} onChange={(e) => setForm({...form, phone: e.target.value})} required /></div>
-                  <div><Label>Password *</Label><Input value={form.password} onChange={(e) => setForm({...form, password: e.target.value})} required /></div>
                   <div><Label>Parent Name</Label><Input value={form.parentName} onChange={(e) => setForm({...form, parentName: e.target.value})} /></div>
                   <div><Label>Parent Phone</Label><Input value={form.parentPhone} onChange={(e) => setForm({...form, parentPhone: e.target.value})} /></div>
                 </div>

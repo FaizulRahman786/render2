@@ -8,29 +8,54 @@
       <title>Coaching Management Platform</title>
       <meta name="description" content="A comprehensive coaching platform offering tailored interfaces for students, teachers, and admins to manage courses, live classes, tests, and fees efficiently." />
       <meta name="robots" content="noindex, nofollow" />
+      <!-- Favicons -->
+      <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+      <link rel="alternate icon" href="/favicon.ico" />
+      <!-- PWA -->
       <link rel="manifest" href="/manifest.json" />
       <meta name="theme-color" content="#2563eb" />
+      <!-- OG / Social preview (for internal sharing) -->
+      <meta property="og:title" content="Coaching Management Platform" />
+      <meta property="og:description" content="Manage courses, live classes, tests, and fees efficiently." />
+      <meta property="og:type" content="website" />
       <style>html, body { height: 100%; margin: 0; } #root { height: 100%; }</style>
       
-      <script type="module" crossorigin src="/assets/index-CaNl_jmt.js"></script>
-      <link rel="stylesheet" crossorigin href="/assets/index-CtHbsY3R.css">
+      <script type="module" crossorigin src="/assets/index-Clop0DSV.js"></script>
+      <link rel="stylesheet" crossorigin href="/assets/index-ClxMJlTY.css">
     </head>
 
     <body>
       
-      <div id="root"></div>
+      <div id="root"></div>
       <script>
-        // Replace any old service worker with a safe asset-only service worker,
-        // then register the new worker so we don't serve a stale index.html.
+        // Disable Service Worker in localhost development to avoid stale asset caching.
         if ('serviceWorker' in navigator) {
           window.addEventListener('load', async () => {
-            try {
-              const regs = await navigator.serviceWorker.getRegistrations();
-              await Promise.all(regs.map((r) => r.unregister()));
-            } catch (e) {}
-            try {
-              await navigator.serviceWorker.register('/sw.js');
-            } catch (e) {}
+            const isLocalhost = Boolean(
+              window.location.hostname === 'localhost' ||
+              window.location.hostname === '[::1]' ||
+              window.location.hostname.match(/^127(?:\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}$/)
+            );
+
+            if (isLocalhost) {
+              try {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                for (const reg of regs) {
+                  await reg.unregister();
+                }
+                console.log('[SW] Service workers unregistered for development.');
+              } catch (e) {
+                console.error('[SW] Failed to unregister service worker:', e);
+              }
+            } else {
+              try {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                await Promise.all(regs.map((r) => r.unregister()));
+              } catch (e) {}
+              try {
+                await navigator.serviceWorker.register('/sw.js');
+              } catch (e) {}
+            }
           });
         }
       </script>

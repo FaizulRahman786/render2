@@ -338,8 +338,32 @@ router.patch('/assignments/:id/submissions/:submissionId/grade', asyncHandler(as
   res.json({ success: true, message: 'Submission graded' });
 }));
 
-// ── Doubts ─────────────────────────────────────────────────────────────────
+// ── Doubts (scoped to teacher's own batch students) ─────────────────────────
 router.get('/doubts', asyncHandler(async (req, res) => {
+  const teacherId = req.user!.id;
+
+  // Get all batches this teacher belongs to
+  const teacherBatches = await db
+    .select({ batchId: schema.batchTeachers.batchId })
+    .from(schema.batchTeachers)
+    .where(eq(schema.batchTeachers.teacherId, teacherId));
+  const batchIds = teacherBatches.map(b => b.batchId);
+
+  if (batchIds.length === 0) {
+    return res.json({ success: true, data: [] });
+  }
+
+  // Get unique student IDs enrolled in those batches
+  const enrolledStudents = await db
+    .select({ studentId: schema.batchStudents.studentId })
+    .from(schema.batchStudents)
+    .where(inArray(schema.batchStudents.batchId, batchIds));
+  const studentIds = [...new Set(enrolledStudents.map(s => s.studentId))];
+
+  if (studentIds.length === 0) {
+    return res.json({ success: true, data: [] });
+  }
+
   const data = await db
     .select({
       id: schema.doubts.id, question: schema.doubts.question, status: schema.doubts.status,
@@ -348,6 +372,7 @@ router.get('/doubts', asyncHandler(async (req, res) => {
     })
     .from(schema.doubts)
     .leftJoin(schema.users, eq(schema.doubts.studentId, schema.users.id))
+    .where(inArray(schema.doubts.studentId, studentIds))
     .orderBy(desc(schema.doubts.createdAt));
   res.json({ success: true, data });
 }));
@@ -392,9 +417,20 @@ router.post('/doubts/:id/reply', asyncHandler(async (req, res) => {
   res.json({ success: true, message: 'Reply posted' });
 }));
 
+// Ensure the test exists and is owned by the requesting teacher (admins bypass).
+async function assertTestOwner(testId: string, req: any): Promise<void> {
+  const [test] = await db.select({ teacherId: schema.tests.teacherId })
+    .from(schema.tests).where(eq(schema.tests.id, testId)).limit(1);
+  if (!test) throw new ApiError(404, 'Test not found');
+  if (req.user.role !== 'admin' && test.teacherId !== req.user.id) {
+    throw new ApiError(403, 'You do not own this test');
+  }
+}
+
 // ── Test Questions ─────────────────────────────────────────────────────────
 router.get('/tests/:id/questions', asyncHandler(async (req, res) => {
   const testId = String(req.params.id);
+  await assertTestOwner(testId, req);
   const data = await db.select().from(schema.questions).where(eq(schema.questions.testId, testId)).orderBy(schema.questions.order);
   res.json({ success: true, data });
 }));
@@ -403,6 +439,7 @@ router.post('/tests/:id/questions', asyncHandler(async (req, res) => {
   const { questions: qs } = req.body;
   const testId = String(req.params.id);
   if (!qs?.length) throw new ApiError(400, 'questions array is required');
+  await assertTestOwner(testId, req);
   await db.delete(schema.questions).where(eq(schema.questions.testId, testId));
   const inserted = await db.insert(schema.questions).values(
     qs.map((q: any, i: number) => ({

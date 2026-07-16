@@ -1,41 +1,43 @@
-import { pool } from '../db/index.js';
+// ============================================
+// DATABASE LIFECYCLE MANAGEMENT
+// ============================================
+// Runtime migrations (CREATE TABLE / ALTER TABLE / CREATE INDEX) have been
+// REMOVED from this file. All schema changes must go through:
+//
+//   1. Edit apps/backend/src/db/schema.ts
+//   2. pnpm db:generate          (drizzle-kit generate → supabase/migrations/)
+//   3. npx supabase db push      (apply to Supabase PostgreSQL)
+//
+// This file only manages connection health-check and graceful shutdown.
 
-async function runMigrations() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS attendance_sessions (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      batch_id UUID NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
-      teacher_id UUID NOT NULL REFERENCES users(id),
-      title TEXT NOT NULL,
-      session_date TIMESTAMP NOT NULL,
-      topic TEXT,
-      created_at TIMESTAMP DEFAULT NOW() NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS attendance_sessions_batch_id_idx ON attendance_sessions(batch_id);
-    CREATE INDEX IF NOT EXISTS attendance_sessions_session_date_idx ON attendance_sessions(session_date);
+import { postgresClient } from '../db/index.js';
 
-    CREATE TABLE IF NOT EXISTS attendance_records (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      session_id UUID NOT NULL REFERENCES attendance_sessions(id) ON DELETE CASCADE,
-      student_id UUID NOT NULL REFERENCES users(id),
-      status TEXT NOT NULL DEFAULT 'present' CHECK (status IN ('present', 'absent', 'late')),
-      note TEXT
-    );
-    CREATE INDEX IF NOT EXISTS attendance_records_session_id_idx ON attendance_records(session_id);
-    CREATE INDEX IF NOT EXISTS attendance_records_student_id_idx ON attendance_records(student_id);
-  `);
-}
+export let isDbConnected = false;
 
-export async function connectDatabase() {
+/**
+ * Verify the database connection at startup.
+ * Uses the already-initialized postgres.js client singleton.
+ */
+export async function connectDatabase(): Promise<void> {
   try {
-    await pool.query('SELECT 1');
-    console.log('✅ PostgreSQL connected successfully');
-    await runMigrations();
+    // postgres.js is lazy — it doesn't connect until the first query.
+    // Run a lightweight probe to surface connection errors at startup.
+    await postgresClient`SELECT 1`;
+    isDbConnected = true;
+    console.log('✅ Supabase PostgreSQL connected successfully (postgres.js)');
   } catch (error) {
-    console.warn('⚠️ Database unavailable, continuing in degraded mode:', error instanceof Error ? error.message : error);
+    isDbConnected = false;
+    console.warn(
+      '⚠️  Database unavailable, continuing in degraded mode:',
+      error instanceof Error ? error.message : error,
+    );
   }
 }
 
-export async function disconnectDatabase() {
-  await pool.end();
+/**
+ * Gracefully close the postgres.js client.
+ * Called on SIGTERM / SIGINT to drain in-flight requests before exiting.
+ */
+export async function disconnectDatabase(): Promise<void> {
+  await postgresClient.end({ timeout: 5 });
 }

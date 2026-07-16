@@ -31,9 +31,12 @@ const allFiles = walk(distDir)
   .map(f => path.relative(distDir, f).replace(/\\/g, '/'))
   .filter(p => p !== 'precache-manifest.json');
 
-// Only include assets we want to cache: html, css, js, fonts, images, icons
+// Cache hashed/static assets only. index.html is intentionally excluded: it is
+// NOT content-hashed, so precaching it would pin a stale shell referencing
+// deleted bundles after a deploy (navigations use network-first instead).
 const precache = allFiles
-  .filter(p => /\.(html|js|css|svg|png|jpg|jpeg|webp|woff2?|json)$/.test(p))
+  .filter(p => /\.(js|css|svg|png|jpg|jpeg|webp|woff2?|json)$/.test(p))
+  .filter(p => p !== 'index.html')
   .map(p => '/' + p.replace(/^\/?/, ''));
 
 fs.writeFileSync(outFile, JSON.stringify(precache, null, 2));

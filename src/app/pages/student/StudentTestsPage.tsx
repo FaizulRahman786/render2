@@ -75,6 +75,10 @@ export const StudentTestsPage: React.FC = () => {
     }
   }, [answers, activeTest, testOpen, result]);
 
+  // Keep a ref to the latest handleSubmit so the timer's auto-submit always
+  // sees the current answers (the interval closure is created once per test).
+  const handleSubmitRef = useRef<(autoSubmit?: boolean) => void>(() => {});
+
   // Timer countdown
   useEffect(() => {
     if (!testOpen || result) return;
@@ -82,7 +86,7 @@ export const StudentTestsPage: React.FC = () => {
       setTimeLeft(prev => {
         if (prev <= 1) {
           clearInterval(timerRef.current!);
-          handleSubmit(true);
+          handleSubmitRef.current(true);
           return 0;
         }
         return prev - 1;
@@ -118,6 +122,7 @@ export const StudentTestsPage: React.FC = () => {
       setSubmitting(false);
     }
   };
+  handleSubmitRef.current = handleSubmit;
 
   const answeredCount = Object.keys(answers).length;
   const totalQ = questions.length;

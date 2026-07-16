@@ -4,24 +4,24 @@ dotenv.config();
 export const config = {
   port: parseInt(process.env.BACKEND_PORT || process.env.PORT || '3001'),
   nodeEnv: process.env.NODE_ENV || 'development',
-  jwtSecret: process.env.JWT_SECRET || 'coaching-platform-jwt-secret-2024',
-  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'coaching-platform-jwt-refresh-secret-2024',
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '15m',
-  jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+  authProvider: process.env.AUTH_PROVIDER || 'supabase',
+  supabaseUrl: process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '',
+  supabaseAnonKey: process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '',
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5000,http://localhost:5002,http://127.0.0.1:5000,http://127.0.0.1:5002',
-  sessionSecret: process.env.SESSION_SECRET || process.env.JWT_SECRET || 'coaching-platform-session-secret-2024',
+  // Must be explicitly set to 'true' to enable offline mock mode. Never enable in production.
+  enableAuthMock: process.env.ENABLE_AUTH_MOCK === 'true',
 } as const;
 
 export function validateEnv() {
   const missing = [] as string[];
   if (!process.env.DATABASE_URL) missing.push('DATABASE_URL');
-  if (!process.env.JWT_SECRET) missing.push('JWT_SECRET');
-  if (!process.env.JWT_REFRESH_SECRET) missing.push('JWT_REFRESH_SECRET');
+  if (!config.supabaseUrl) missing.push('SUPABASE_URL');
+  if (!config.supabaseAnonKey) missing.push('SUPABASE_ANON_KEY');
   if (missing.length) {
-    const message = `Missing required environment variables: ${missing.join(', ')}`;
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(message);
-    }
-    console.warn(`⚠️ ${message}`);
+    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  }
+
+  if (!['legacy', 'supabase', 'dual'].includes(config.authProvider)) {
+    throw new Error('AUTH_PROVIDER must be one of: legacy, supabase, dual');
   }
 }

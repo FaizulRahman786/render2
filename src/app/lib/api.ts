@@ -1,39 +1,71 @@
-const defaultApiBase = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'https://second-2-qx77.onrender.com/api');
+import { getSupabaseAccessToken } from './supabase';
+
+// In production, VITE_API_URL must be set in your Vercel/hosting environment.
+// In development, Vite's proxy forwards /api → localhost:3001.
+const defaultApiBase = import.meta.env.VITE_API_URL || '/api';
 
 export const BASE_URL = defaultApiBase;
 
-function getToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token') || sessionStorage.getItem('token') || localStorage.getItem('token');
+export async function getAuthToken(): Promise<string | null> {
+  return getSupabaseAccessToken();
+}
+
+async function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken();
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
-  };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const maxRetries = 3;
+  let delay = 1000;
 
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers,
-    credentials: 'include',
-  });
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const token = await getAuthToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(options.headers as Record<string, string>),
+      };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const contentType = res.headers.get('content-type') || '';
-  const data = contentType.includes('application/json') ? await res.json() : await res.text();
+      const res = await fetch(`${BASE_URL}${path}`, {
+        ...options,
+        headers,
+        credentials: 'include',
+      });
 
-  if (!res.ok) {
-    const message = typeof data === 'string' ? data : (data.error || data.message || 'Request failed');
-    throw new Error(message);
+      const contentType = res.headers.get('content-type') || '';
+      const data = contentType.includes('application/json') ? await res.json() : await res.text();
+
+      if (!res.ok) {
+        // Retry on rate limit (429) or temporary server errors (502, 503, 504)
+        const isTransientStatus = res.status === 429 || res.status === 502 || res.status === 503 || res.status === 504;
+        if (isTransientStatus && attempt < maxRetries) {
+          console.warn(`[API] Transient status ${res.status} on ${path}. Retrying attempt ${attempt}...`);
+          await sleep(delay);
+          delay *= 2;
+          continue;
+        }
+        const message = typeof data === 'string' ? data : (data.error || data.message || 'Request failed');
+        throw new Error(message);
+      }
+
+      return (typeof data === 'string' ? { message: data } : data) as T;
+    } catch (error: any) {
+      const isNetworkError = error instanceof TypeError || error.message?.includes('fetch') || error.message?.includes('NetworkError');
+      if (isNetworkError && attempt < maxRetries) {
+        console.warn(`[API] Network error on ${path}: ${error.message}. Retrying attempt ${attempt}...`);
+        await sleep(delay);
+        delay *= 2;
+        continue;
+      }
+      throw error;
+    }
   }
-
-  return (typeof data === 'string' ? { message: data } : data) as T;
+  throw new Error('Request failed after maximum retries');
 }
 
 async function uploadFile(file: File): Promise<{ fileUrl: string; fileName: string; fileSize: number; mimeType: string }> {
-  const token = getToken();
+  const token = await getAuthToken();
   const form = new FormData();
   form.append('file', file);
   const res = await fetch(`${BASE_URL}/upload`, {
@@ -73,15 +105,8 @@ export const api = {
 
   // Auth
   auth: {
-    login: (email: string, password: string) =>
-      request<{ success: boolean; token: string; refreshToken?: string; user: any }>('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      }),
     me: () => request<{ success: boolean; data: any }>('/auth/me'),
-    refresh: () => request<{ success: boolean; token?: string; user?: any }>('/auth/refresh', { method: 'POST' }),
-    changePassword: (data: { currentPassword: string; newPassword: string }) =>
-      request<any>('/auth/change-password', { method: 'POST', body: JSON.stringify(data) }),
+    logout: () => request<any>('/auth/logout', { method: 'POST' }),
     updateProfile: (data: { name?: string; phone?: string }) =>
       request<any>('/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
   },
@@ -214,14 +239,8 @@ export const api = {
     getDoubts: () => request<any>('/student/doubts'),
     postDoubt: (data: any) => request<any>('/student/doubts', { method: 'POST', body: JSON.stringify(data) }),
     getFees: () => request<any>('/student/fees'),
+    getFeeReceipt: (feeId: string) => request<any>(`/student/fees/${feeId}/receipt`),
     getProfile: () => request<any>('/student/profile'),
     updateProfile: (data: any) => request<any>('/student/profile', { method: 'PUT', body: JSON.stringify(data) }),
-    changePassword: (data: { currentPassword: string; newPassword: string }) =>
-      request<any>('/auth/change-password', { method: 'POST', body: JSON.stringify(data) }),
-  },
-
-  // Seed
-  seed: {
-    demo: () => request<any>('/seed/demo', { method: 'POST' }),
   },
 };

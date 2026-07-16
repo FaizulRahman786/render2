@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { BASE_URL } from '../lib/api';
+import { BASE_URL, getAuthToken } from '../lib/api';
 
 export type RealtimeNotificationEvent = {
   id: string;
@@ -17,62 +17,109 @@ type Options = {
   enabled?: boolean;
 };
 
-/**
- * Connects to the backend SSE stream (/api/notifications/stream) and calls
- * onNotification for each incoming notification event.
- *
- * Uses the native EventSource API — works over plain HTTP/HTTPS through
- * any proxy (including Replit's), no WebSocket protocol upgrade needed.
- * EventSource auto-reconnects natively.
- */
+const MAX_RECONNECT_ATTEMPTS = 6;
+const BASE_RECONNECT_DELAY = 1000;
+const MAX_RECONNECT_DELAY = 30000;
+
+function parseSseFrame(frame: string): unknown {
+  const payload = frame
+    .split('\n')
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice(5).trimStart())
+    .join('\n')
+    .trim();
+
+  if (!payload) return null;
+  return JSON.parse(payload);
+}
+
 export function useRealtimeNotifications({ onNotification, enabled = true }: Options) {
-  const esRef = useRef<EventSource | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
+  const retryRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onNotificationRef = useRef(onNotification);
   onNotificationRef.current = onNotification;
 
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     if (!mountedRef.current || !enabled) return;
 
-    const token = localStorage.getItem('token');
-    if (!token) return;
+    const token = await getAuthToken();
+    if (!token || !mountedRef.current || !enabled) return;
 
-    // SSE endpoint — use absolute backend URL and auth via query param
-    const base = BASE_URL.replace(/\/+$/, '');
-    const url = `${base}/notifications/stream?token=${encodeURIComponent(token)}`;
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
-      const es = new EventSource(url);
-      esRef.current = es;
+      const base = BASE_URL.replace(/\/+$/, '');
+      const response = await fetch(`${base}/notifications/stream`, {
+        headers: {
+          Accept: 'text/event-stream',
+          Authorization: `Bearer ${token}`,
+        },
+        signal: controller.signal,
+        credentials: 'include',
+      });
 
-      es.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === 'notification' && msg.data) {
-            onNotificationRef.current(msg.data as RealtimeNotificationEvent);
+      if (!response.ok || !response.body) {
+        throw new Error(`Notification stream rejected with ${response.status}`);
+      }
+
+      retryRef.current = 0;
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (mountedRef.current && enabled) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        buffer = buffer.replace(/\r\n/g, '\n');
+
+        let frameEnd = buffer.indexOf('\n\n');
+        while (frameEnd >= 0) {
+          const frame = buffer.slice(0, frameEnd);
+          buffer = buffer.slice(frameEnd + 2);
+
+          try {
+            const msg = parseSseFrame(frame) as any;
+            if (msg?.type === 'notification' && msg.data) {
+              onNotificationRef.current(msg.data as RealtimeNotificationEvent);
+            }
+          } catch {
+            // Ignore malformed SSE frames and keep the stream alive.
           }
-        } catch {}
-      };
 
-      es.onerror = () => {
-        // EventSource handles reconnection automatically — we just close the
-        // current instance if the component is unmounted.
-        if (!mountedRef.current) {
-          es.close();
-          esRef.current = null;
+          frameEnd = buffer.indexOf('\n\n');
         }
-      };
-    } catch {}
+      }
+    } catch (error: any) {
+      if (error?.name === 'AbortError' || !mountedRef.current || !enabled) return;
+
+      if (retryRef.current >= MAX_RECONNECT_ATTEMPTS) return;
+      const delay = Math.min(
+        BASE_RECONNECT_DELAY * 2 ** retryRef.current,
+        MAX_RECONNECT_DELAY,
+      );
+      retryRef.current += 1;
+      reconnectTimerRef.current = setTimeout(() => {
+        void connect();
+      }, delay);
+    }
   }, [enabled]);
 
   useEffect(() => {
     mountedRef.current = true;
-    connect();
+    retryRef.current = 0;
+    void connect();
 
     return () => {
       mountedRef.current = false;
-      esRef.current?.close();
-      esRef.current = null;
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+      abortRef.current?.abort();
+      abortRef.current = null;
     };
   }, [connect]);
 }

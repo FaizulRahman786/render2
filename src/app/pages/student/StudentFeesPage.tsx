@@ -106,7 +106,7 @@ export const StudentFeesPage: React.FC = () => {
   const handlePrintReceipt = async (fee: any) => {
     setPrintingId(fee.id);
     try {
-      const r = await api.admin.getFeeReceipt(fee.id).catch(() => null);
+      const r = await api.student.getFeeReceipt(fee.id).catch(() => null);
       if (r?.success) {
         printReceipt(r.data.fee, r.data.payments);
       } else {

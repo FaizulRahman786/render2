@@ -35,9 +35,9 @@ export const StudentLiveClassesPage: React.FC = () => {
                     <Badge className="bg-blue-600">{c.status}</Badge>
                   </div>
                   <h3 className="font-bold mb-1">{c.title}</h3>
-                  <p className="text-sm text-muted-foreground mb-3">📅 {c.scheduledAt ? new Date(c.scheduledAt).toLocaleString() : '—'} • ⏱ {c.duration || 60} min</p>
-                  {c.meetLink && (
-                    <a href={c.meetLink} target="_blank" rel="noopener noreferrer">
+                  <p className="text-sm text-muted-foreground mb-3">📅 {c.scheduledDate ? new Date(c.scheduledDate).toLocaleString() : '—'} • ⏱ {c.duration || 60} min</p>
+                  {c.meetingLink && (
+                    <a href={c.meetingLink} target="_blank" rel="noopener noreferrer">
                       <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
                         <ExternalLink className="h-3 w-3 mr-1" /> Join Class
                       </Button>
@@ -63,7 +63,7 @@ export const StudentLiveClassesPage: React.FC = () => {
                     <Badge variant="secondary">{c.status}</Badge>
                   </div>
                   <h3 className="font-medium mb-1">{c.title}</h3>
-                  <p className="text-sm text-muted-foreground">📅 {c.scheduledAt ? new Date(c.scheduledAt).toLocaleString() : '—'}</p>
+                  <p className="text-sm text-muted-foreground">📅 {c.scheduledDate ? new Date(c.scheduledDate).toLocaleString() : '—'}</p>
                 </CardContent>
               </Card>
             ))}

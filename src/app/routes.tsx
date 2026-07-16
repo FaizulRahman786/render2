@@ -1,5 +1,6 @@
-import { createBrowserRouter, Navigate } from 'react-router';
+﻿import { createBrowserRouter, Navigate } from 'react-router';
 import { useAuth } from './contexts/AuthContext';
+import { AuthCallback } from './contexts/AuthContext';
 import { LoginPage } from './components/auth/LoginPage';
 import { AdminLayout } from './components/layout/AdminLayout';
 import { TeacherLayout } from './components/layout/TeacherLayout';
@@ -49,53 +50,48 @@ const UnauthorizedPage = () => (
   </div>
 );
 
+const AuthLoadingSpinner = () => (
+  <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="flex flex-col items-center gap-3">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600" />
+      <p className="text-sm text-gray-500">Loading...</p>
+    </div>
+  </div>
+);
+
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode; allowedRoles: string[] }) => {
   const { user, isAuthenticated, isLoading } = useAuth();
-
-  if (isLoading) return null;
-
-  if (!isAuthenticated || !user) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (!allowedRoles.includes(user.role)) {
-    return <UnauthorizedPage />;
-  }
-
+  if (isLoading) return <AuthLoadingSpinner />;
+  if (!isAuthenticated || !user) return <Navigate to="/login" replace />;
+  if (!allowedRoles.includes(user.role)) return <UnauthorizedPage />;
   return <>{children}</>;
 };
 
 const LoginRoute = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
-
-  if (isLoading) return null;
-
+  if (isLoading) return <AuthLoadingSpinner />;
   if (isAuthenticated && user) {
     if (user.role === 'admin') return <Navigate to="/admin" replace />;
     if (user.role === 'teacher') return <Navigate to="/teacher" replace />;
     if (user.role === 'student') return <Navigate to="/student" replace />;
   }
-
   return <LoginPage />;
 };
 
 const RootRedirect = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
-
-  if (isLoading) return null;
-
+  if (isLoading) return <AuthLoadingSpinner />;
   if (!isAuthenticated || !user) return <Navigate to="/login" replace />;
-
   if (user.role === 'admin') return <Navigate to="/admin" replace />;
   if (user.role === 'teacher') return <Navigate to="/teacher" replace />;
   if (user.role === 'student') return <Navigate to="/student" replace />;
-
   return <Navigate to="/login" replace />;
 };
 
 export const router = createBrowserRouter([
   { path: '/', element: <RootRedirect /> },
   { path: '/login', element: <LoginRoute /> },
+  { path: '/auth/callback', element: <AuthCallback /> },
   {
     path: '/admin',
     element: (
@@ -160,8 +156,5 @@ export const router = createBrowserRouter([
       { path: 'profile', element: <ProfilePage /> },
     ],
   },
-  {
-    path: '*',
-    element: <Navigate to="/login" replace />,
-  },
+  { path: '*', element: <Navigate to="/login" replace /> },
 ]);

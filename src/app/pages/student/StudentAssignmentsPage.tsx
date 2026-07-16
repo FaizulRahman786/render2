@@ -27,7 +27,10 @@ export const StudentAssignmentsPage: React.FC = () => {
   const handleSubmit = async (id: string) => {
     setSaving(true);
     try {
-      await api.student.submitAssignment(id, submission);
+      await api.student.submitAssignment(id, {
+        submissionText: submission.content,
+        submissionUrl: submission.fileUrl || undefined,
+      });
       toast.success('Assignment submitted!');
       setSubmitOpen(null);
       setSubmission({ content: '', fileUrl: '' });
@@ -49,19 +52,20 @@ export const StudentAssignmentsPage: React.FC = () => {
             </TableHeader>
             <TableBody>
               {assignments.map((a) => {
-                const isOverdue = a.dueDate && new Date(a.dueDate) < new Date() && !a.submitted;
+                const isSubmitted = !!a.submissionId || a.submissionStatus === 'submitted' || a.submissionStatus === 'graded';
+                const isOverdue = a.dueDate && new Date(a.dueDate) < new Date() && !isSubmitted;
                 return (
                   <TableRow key={a.id}>
                     <TableCell className="font-medium">{a.title}</TableCell>
-                    <TableCell>{a.maxMarks}</TableCell>
+                    <TableCell>{a.totalMarks ?? '—'}</TableCell>
                     <TableCell className={'text-sm ' + (isOverdue ? 'text-red-600' : 'text-muted-foreground')}>{a.dueDate ? new Date(a.dueDate).toLocaleDateString() : '—'}</TableCell>
                     <TableCell>
-                      <Badge variant={a.submitted ? 'default' : isOverdue ? 'destructive' : 'secondary'}>
-                        {a.submitted ? 'Submitted' : isOverdue ? 'Overdue' : 'Pending'}
+                      <Badge variant={isSubmitted ? 'default' : isOverdue ? 'destructive' : 'secondary'}>
+                        {isSubmitted ? (a.submissionStatus === 'graded' ? 'Graded' : 'Submitted') : isOverdue ? 'Overdue' : 'Pending'}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {!a.submitted && (
+                      {!isSubmitted && (
                         <Dialog open={submitOpen === a.id} onOpenChange={(o) => setSubmitOpen(o ? a.id : null)}>
                           <DialogTrigger asChild>
                             <Button size="sm"><Send className="h-3 w-3 mr-1" />Submit</Button>

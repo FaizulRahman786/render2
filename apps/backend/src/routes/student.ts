@@ -203,6 +203,10 @@ router.get('/tests', asyncHandler(async (req, res) => {
 // ── Test Questions (for taking a test) ─────────────────────────────────────
 router.get('/tests/:testId/questions', asyncHandler(async (req, res) => {
   const testId = String(req.params.testId);
+  // Only expose questions for a published test (prevents enumerating drafts).
+  const [test] = await db.select({ status: schema.tests.status })
+    .from(schema.tests).where(eq(schema.tests.id, testId)).limit(1);
+  if (!test || test.status !== 'published') throw new ApiError(404, 'Test not found');
   const questions = await db
     .select({
       id: schema.questions.id, questionText: schema.questions.questionText,
@@ -227,7 +231,7 @@ router.post('/tests/:testId/submit', asyncHandler(async (req, res) => {
   if (existing.length) throw new ApiError(400, 'Test already submitted');
 
   const [test] = await db.select().from(schema.tests).where(eq(schema.tests.id, testId)).limit(1);
-  if (!test) throw new ApiError(404, 'Test not found');
+  if (!test || test.status !== 'published') throw new ApiError(404, 'Test not found');
 
   const questions = await db.select().from(schema.questions).where(eq(schema.questions.testId, testId));
 
@@ -303,6 +307,8 @@ router.get('/assignments', asyncHandler(async (req, res) => {
 router.post('/assignments/:id/submit', asyncHandler(async (req, res) => {
   const assignmentId = String(req.params.id);
   const { submissionText, submissionUrl } = req.body;
+  if (!submissionText && !submissionUrl) throw new ApiError(400, 'submissionText or submissionUrl is required');
+  if (submissionText && submissionText.length > 10000) throw new ApiError(400, 'submissionText must not exceed 10000 characters');
   const existing = await db.select().from(schema.assignmentSubmissions)
     .where(and(eq(schema.assignmentSubmissions.assignmentId, assignmentId), eq(schema.assignmentSubmissions.studentId, req.user!.id)))
     .limit(1);
@@ -351,8 +357,10 @@ router.get('/doubts', asyncHandler(async (req, res) => {
 
 router.post('/doubts', asyncHandler(async (req, res) => {
   const { question, subjectId } = req.body;
-  if (!question) throw new ApiError(400, 'question is required');
-  const [doubt] = await db.insert(schema.doubts).values({ studentId: req.user!.id, subjectId, question }).returning();
+  if (!question || typeof question !== 'string') throw new ApiError(400, 'question is required');
+  if (question.trim().length < 10) throw new ApiError(400, 'question must be at least 10 characters');
+  if (question.length > 2000) throw new ApiError(400, 'question must not exceed 2000 characters');
+  const [doubt] = await db.insert(schema.doubts).values({ studentId: req.user!.id, subjectId, question: question.trim() }).returning();
   res.status(201).json({ success: true, data: doubt });
 }));
 
@@ -377,6 +385,30 @@ router.get('/fees', asyncHandler(async (req, res) => {
 }));
 
 // ── Profile ────────────────────────────────────────────────────────────────
+router.get('/fees/:feeId/receipt', asyncHandler(async (req, res) => {
+  const feeId = String(req.params.feeId);
+  const studentId = req.user!.id;
+  const [fee] = await db
+    .select({
+      id: schema.fees.id, totalAmount: schema.fees.totalAmount, discount: schema.fees.discount,
+      finalAmount: schema.fees.finalAmount, dueDate: schema.fees.dueDate, createdAt: schema.fees.createdAt,
+      courseName: schema.courses.name, studentName: schema.users.name, studentEmail: schema.users.email,
+    })
+    .from(schema.fees)
+    .leftJoin(schema.courses, eq(schema.fees.courseId, schema.courses.id))
+    .leftJoin(schema.users, eq(schema.fees.studentId, schema.users.id))
+    .where(and(eq(schema.fees.id, feeId), eq(schema.fees.studentId, studentId)))
+    .limit(1);
+  if (!fee) throw new ApiError(404, 'Fee not found');
+
+  const payments = await db
+    .select()
+    .from(schema.payments)
+    .where(and(eq(schema.payments.feeId, feeId), eq(schema.payments.studentId, studentId)))
+    .orderBy(desc(schema.payments.paidAt));
+  res.json({ success: true, data: { fee, payments } });
+}));
+
 router.get('/profile', asyncHandler(async (req, res) => {
   const [user] = await db
     .select({ id: schema.users.id, name: schema.users.name, email: schema.users.email, phone: schema.users.phone, profileImage: schema.users.profileImage, status: schema.users.status, createdAt: schema.users.createdAt })
@@ -386,9 +418,46 @@ router.get('/profile', asyncHandler(async (req, res) => {
 }));
 
 router.put('/profile', asyncHandler(async (req, res) => {
-  const { phone, address, parentName, parentPhone } = req.body;
-  await db.update(schema.users).set({ phone, updatedAt: new Date() }).where(eq(schema.users.id, req.user!.id));
-  await db.update(schema.studentProfiles).set({ address, parentName, parentPhone }).where(eq(schema.studentProfiles.userId, req.user!.id));
+  const { name, phone, address, parentName, parentPhone, class: studentClass, board } = req.body;
+  if (name !== undefined) {
+    if (typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 100) {
+      throw new ApiError(400, 'name must be between 2 and 100 characters');
+    }
+  }
+  if (phone !== undefined && phone !== null) {
+    const phoneStr = String(phone).trim();
+    if (phoneStr && !/^\+?[\d\s\-().]{7,20}$/.test(phoneStr)) {
+      throw new ApiError(400, 'Invalid phone number format');
+    }
+  }
+  if (parentName !== undefined && String(parentName).length > 100) {
+    throw new ApiError(400, 'parentName must not exceed 100 characters');
+  }
+  if (address !== undefined && String(address).length > 500) {
+    throw new ApiError(400, 'address must not exceed 500 characters');
+  }
+  if (studentClass !== undefined && String(studentClass).length > 50) {
+    throw new ApiError(400, 'class must not exceed 50 characters');
+  }
+  if (board !== undefined && String(board).length > 50) {
+    throw new ApiError(400, 'board must not exceed 50 characters');
+  }
+
+  const userUpdates: any = { updatedAt: new Date() };
+  if (name !== undefined) userUpdates.name = String(name).trim();
+  if (phone !== undefined) userUpdates.phone = phone ?? undefined;
+
+  await db.update(schema.users).set(userUpdates).where(eq(schema.users.id, req.user!.id));
+  await db.update(schema.studentProfiles)
+    .set({
+      address: address !== undefined ? address : undefined,
+      parentName: parentName !== undefined ? parentName : undefined,
+      parentPhone: parentPhone !== undefined ? parentPhone : undefined,
+      class: studentClass !== undefined ? studentClass : undefined,
+      board: board !== undefined ? board : undefined,
+    })
+    .where(eq(schema.studentProfiles.userId, req.user!.id));
+
   res.json({ success: true, message: 'Profile updated' });
 }));
 

@@ -1,31 +1,32 @@
 # Authentication Flow
 
-## Login flow
-1. User submits email and password from the login page.
-2. The frontend sends a POST request to /api/auth/login.
-3. The backend validates credentials, checks the user role, and issues a JWT.
-4. The frontend stores the token securely in session/local storage and updates the auth context.
-5. The user is redirected to the correct dashboard based on role.
+## Login Flow
+1. The user opens the single `/login` page.
+2. The user signs in with Supabase Phone OTP or Google OAuth.
+3. Supabase owns the browser session and access token.
+4. The frontend sends the Supabase access token as `Authorization: Bearer <token>`.
+5. Express verifies the token with Supabase and loads the matching application user.
+6. The backend resolves the role from PostgreSQL only and redirects the user to `/student`, `/teacher`, or `/admin`.
 
-## Logout flow
-1. The user clicks Logout.
-2. The frontend clears all auth storage keys and resets the auth state.
-3. The browser is redirected to /login using replace navigation.
-4. Protected routes re-check authentication and block access.
+## Logout Flow
+1. The frontend records logout with `/api/auth/logout` when possible.
+2. The frontend signs out through Supabase.
+3. Legacy local storage auth keys are cleared.
+4. The browser returns to `/login`.
 
-## JWT lifecycle
-- Access token is validated on protected API requests.
-- Expired or invalid tokens cause a 401 response.
-- A refresh flow can be used when available to reissue a token.
+## Token Lifecycle
+- Supabase manages session persistence and token refresh.
+- The backend never issues custom JWTs or refresh tokens.
+- Expired or invalid Supabase access tokens return `401`.
 
-## Route protection
-- /student/* requires the student role.
-- /teacher/* requires the teacher role.
-- /admin/* requires the admin role.
-- Unauthenticated users are redirected to /login.
-- Role mismatches are redirected to an unauthorized state.
+## Route Protection
+- `/student/*` requires the student role.
+- `/teacher/*` requires the teacher role.
+- `/admin/*` requires the admin role.
+- Unauthenticated users are redirected to `/login`.
+- Role mismatches are blocked by route guards and backend middleware.
 
-## Role-based authorization
-- Students can only access student routes.
-- Teachers can only access teacher routes.
-- Admins can only access admin routes.
+## Role Resolution
+- Supabase is identity only.
+- PostgreSQL is the authorization source of truth.
+- Roles are never accepted from client input, Google metadata, or phone metadata.

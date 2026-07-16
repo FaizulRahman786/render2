@@ -93,7 +93,7 @@ export interface User {
   name: string;
   email: string;
   phone: string;
-  password: string; // hashed
+  password?: string | null; // legacy hashed password, null for Supabase-backed users
   profileImage?: string;
   role: UserRole;
   status: UserStatus;
@@ -439,6 +439,10 @@ export interface AuthUser {
   id: string;
   email: string;
   role: UserRole;
+  supabaseAuthId?: string;
+  name?: string;
+  phone?: string;
+  profileImage?: string;
 }
 
 // ==================== ANALYTICS TYPES ====================
@@ -478,7 +482,6 @@ export interface CreateStudentRequest {
   name: string;
   email: string;
   phone: string;
-  password: string;
   parentName?: string;
   parentPhone?: string;
   address?: string;
@@ -491,7 +494,6 @@ export interface CreateTeacherRequest {
   name: string;
   email: string;
   phone: string;
-  password: string;
   qualification?: string;
   experience?: number;
   specialization?: string;

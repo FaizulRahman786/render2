@@ -7,8 +7,6 @@ import { Loader2, Bell, CheckCheck, BellRing, Megaphone, BookOpen, ClipboardList
 import { formatDistanceToNow } from 'date-fns';
 import { api } from '../../lib/api';
 
-  const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
-
 const TYPE_META: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
   broadcast:        { icon: <Megaphone className="h-4 w-4" />,     color: 'text-purple-600 bg-purple-50',  label: 'Broadcast' },
   material_upload:  { icon: <BookOpen className="h-4 w-4" />,      color: 'text-blue-600 bg-blue-50',      label: 'Material' },

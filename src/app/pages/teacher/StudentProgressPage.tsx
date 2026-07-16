@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 import { Progress } from '../../components/ui/progress';
 import { Loader2, Users, TrendingUp, ClipboardCheck, MessageCircle, Trophy, RefreshCw, GraduationCap } from 'lucide-react';
-import { api, BASE_URL } from '../../lib/api';
+import { api, BASE_URL, getAuthToken } from '../../lib/api';
 
 const GRADE_COLORS: Record<string, string> = {
   'A+': 'bg-emerald-100 text-emerald-700 border-emerald-200',
@@ -43,8 +43,11 @@ export const StudentProgressPage: React.FC = () => {
   const loadProgress = useCallback((batchId: string) => {
     if (!batchId) return;
     setLoading(true);
-    const path = `/teacher/batches/${batchId}/students/progress`;
-    fetch(`${BASE_URL}${path}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+    void (async () => {
+      const path = `/teacher/batches/${batchId}/students/progress`;
+      const token = await getAuthToken();
+      return fetch(`${BASE_URL}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    })()
       .then(r => r.json())
       .then((r) => {
         if (r.success) {

@@ -27,6 +27,8 @@ export const studentProfiles = pgTable('student_profiles', {
   parentName: text('parent_name'),
   parentPhone: text('parent_phone'),
   address: text('address'),
+  class: text('class'),
+  board: text('board'),
   dateOfBirth: timestamp('date_of_birth'),
   enrollmentDate: timestamp('enrollment_date').defaultNow().notNull(),
   courseId: uuid('course_id'),
@@ -386,3 +388,39 @@ export const notifications = pgTable('notifications', {
   isReadIdx: index('notifications_is_read_idx').on(t.isRead),
   createdAtIdx: index('notifications_created_at_idx').on(t.createdAt),
 }));
+
+// ── Auth: Supabase Identity ─────────────────────────────────────────────────
+// Links a Supabase Auth identity (UUID from auth.users) to an app user.
+export const profiles = pgTable('profiles', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  supabaseAuthId: text('supabase_auth_id').notNull().unique(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  primaryProvider: text('primary_provider').notNull().default('email'),
+  linkedAt: timestamp('linked_at').defaultNow().notNull(),
+  lastLoginAt: timestamp('last_login_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => ({
+  supabaseAuthIdIdx: index('profiles_supabase_auth_id_idx').on(t.supabaseAuthId),
+  userIdIdx: index('profiles_user_id_idx').on(t.userId),
+}));
+
+// ── Auth: Audit Events ──────────────────────────────────────────────────────
+// Immutable audit log for all authentication events.
+export const authEvents = pgTable('auth_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id),
+  supabaseAuthId: text('supabase_auth_id'),
+  eventType: text('event_type').notNull(),
+  provider: text('provider'),
+  status: text('status', { enum: ['success', 'failure'] }).notNull(),
+  reason: text('reason'),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => ({
+  userIdIdx: index('auth_events_user_id_idx').on(t.userId),
+  eventTypeIdx: index('auth_events_event_type_idx').on(t.eventType),
+  createdAtIdx: index('auth_events_created_at_idx').on(t.createdAt),
+}));
+

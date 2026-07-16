@@ -32,7 +32,16 @@ export const LiveClassesPage: React.FC = () => {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.teacher.createLiveClass(form);
+      const scheduledAt = form.scheduledAt ? new Date(form.scheduledAt) : null;
+      await api.teacher.createLiveClass({
+        title: form.title,
+        batchId: form.batchId,
+        description: form.description,
+        duration: Number(form.duration) || 60,
+        meetingLink: form.meetLink,
+        scheduledDate: scheduledAt?.toISOString(),
+        scheduledTime: scheduledAt?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '',
+      });
       toast.success('Live class scheduled');
       setAddOpen(false);
       setForm({ title: '', batchId: '', scheduledAt: '', duration: '60', meetLink: '', description: '' });
@@ -98,10 +107,10 @@ export const LiveClassesPage: React.FC = () => {
                 <TableRow key={c.id}>
                   <TableCell className="font-medium">{c.title}</TableCell>
                   <TableCell>{c.batchName || '—'}</TableCell>
-                  <TableCell className="text-sm">{c.scheduledAt ? new Date(c.scheduledAt).toLocaleString() : '—'}</TableCell>
+                  <TableCell className="text-sm">{c.scheduledDate ? new Date(c.scheduledDate).toLocaleString() : '—'}</TableCell>
                   <TableCell>{c.duration ? c.duration + ' min' : '—'}</TableCell>
                   <TableCell><Badge variant={c.status === 'live' ? 'destructive' : c.status === 'completed' ? 'secondary' : 'default'}>{c.status}</Badge></TableCell>
-                  <TableCell>{c.meetLink && <a href={c.meetLink} target="_blank" rel="noopener noreferrer" className="text-blue-600"><ExternalLink className="h-4 w-4" /></a>}</TableCell>
+                  <TableCell>{c.meetingLink && <a href={c.meetingLink} target="_blank" rel="noopener noreferrer" className="text-blue-600"><ExternalLink className="h-4 w-4" /></a>}</TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="icon" className="text-red-600" onClick={() => handleDelete(c.id)}><Trash2 className="h-4 w-4" /></Button>
                   </TableCell>

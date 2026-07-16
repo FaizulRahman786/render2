@@ -185,28 +185,13 @@ export const SettingsPage: React.FC = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="p-4 border rounded-lg">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">Admin Password</p>
-                <p className="text-sm text-muted-foreground">Change your admin account password</p>
+                <p className="font-medium">Supabase Authentication</p>
+                <p className="text-sm text-muted-foreground">Admin identity is managed through Supabase phone OTP or Google sign-in.</p>
               </div>
               <Badge variant="secondary"><CheckCircle2 className="h-3 w-3 mr-1" />Active</Badge>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Current Password</Label>
-                <Input type="password" placeholder="Enter current password" />
-              </div>
-              <div className="space-y-2">
-                <Label>New Password</Label>
-                <Input type="password" placeholder="Enter new password" />
-              </div>
-            </div>
-          </div>
-          <div className="flex justify-end">
-            <Button className="bg-gradient-to-r from-purple-600 to-indigo-600">
-              <Save className="h-4 w-4 mr-2" /> Update Password
-            </Button>
           </div>
         </CardContent>
       </Card>

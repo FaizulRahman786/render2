@@ -26,9 +26,15 @@ export function errorHandler(
     method: req.method,
   });
 
+  // Only surface messages we deliberately raised (ApiError). Unexpected throws
+  // (DB drivers, etc.) must not leak internals to clients in production.
+  const safeMessage = err.isOperational || process.env.NODE_ENV === 'development'
+    ? message
+    : 'Internal server error';
+
   res.status(statusCode).json({
     success: false,
-    error: message,
+    error: safeMessage,
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
   });
 }
