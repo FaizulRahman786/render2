@@ -5,6 +5,8 @@ import { db, schema } from '../db/index.js';
 import { isDbConnected } from '../config/database.js';
 import { authenticate } from '../middleware/auth.js';
 import { asyncHandler, ApiError } from '../middleware/error.js';
+import { validate } from '../middleware/validation.js';
+import { updateProfileSchema } from '../validation/schemas.js';
 
 const router: ExpressRouter = Router();
 
@@ -61,7 +63,7 @@ router.post('/logout', authenticate, asyncHandler(async (req, res) => {
 }));
 
 // PUT /api/auth/profile
-router.put('/profile', authenticate, asyncHandler(async (req, res) => {
+router.put('/profile', authenticate, validate(updateProfileSchema), asyncHandler(async (req, res) => {
   const { name, phone } = req.body;
   if (name !== undefined) {
     if (typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 100) {

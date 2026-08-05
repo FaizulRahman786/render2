@@ -56,7 +56,7 @@ export const DoubtsPage: React.FC = () => {
                       <span className="font-medium">{d.studentName || 'Student'}</span>
                       <Badge variant={d.status === 'open' ? 'destructive' : 'secondary'} className="text-xs">{d.status}</Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground">{d.subject} • {d.batchName}</p>
+                    <p className="text-sm text-muted-foreground">{d.subjectName || 'General'}</p>
                   </div>
                   <span className="text-xs text-muted-foreground">{d.createdAt ? new Date(d.createdAt).toLocaleDateString() : ''}</span>
                 </div>

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { Badge } from '../../components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
@@ -30,6 +29,7 @@ export const AssignmentsPage: React.FC = () => {
   const [gradingId, setGradingId] = useState<string | null>(null);
   const [gradeForm, setGradeForm] = useState({ marks: '', feedback: '' });
   const [gradeOpen, setGradeOpen] = useState(false);
+  const [gradingSaving, setGradingSaving] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -70,7 +70,8 @@ export const AssignmentsPage: React.FC = () => {
   };
 
   const handleGrade = async () => {
-    if (!gradingId || !selectedAssignment) return;
+    if (!gradingId || !selectedAssignment || gradingSaving) return;
+    setGradingSaving(true);
     try {
       await api.teacher.gradeSubmission(selectedAssignment.id, gradingId, {
         marksAwarded: gradeForm.marks,
@@ -82,6 +83,7 @@ export const AssignmentsPage: React.FC = () => {
       const r = await api.teacher.getAssignmentSubmissions(selectedAssignment.id);
       if (r.success) setSubmissions(r.data);
     } catch (err: any) { toast.error(err.message); }
+    finally { setGradingSaving(false); }
   };
 
   const statusColor: Record<string, string> = {
@@ -203,8 +205,8 @@ export const AssignmentsPage: React.FC = () => {
               </div>
               <div className="flex gap-3 pt-2">
                 <Button variant="outline" onClick={() => setGradeOpen(false)} className="flex-1">Cancel</Button>
-                <Button onClick={handleGrade} className="flex-1 bg-green-600 hover:bg-green-700" disabled={!gradeForm.marks}>
-                  <CheckSquare className="h-4 w-4 mr-2" />Submit Grade
+                <Button onClick={handleGrade} className="flex-1 bg-green-600 hover:bg-green-700" disabled={!gradeForm.marks || gradingSaving}>
+                  {gradingSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckSquare className="h-4 w-4 mr-2" />}Submit Grade
                 </Button>
               </div>
             </div>
@@ -257,7 +259,7 @@ export const AssignmentsPage: React.FC = () => {
           <CardContent className="p-0">
             <Table>
               <TableHeader>
-                <TableRow><TableHead>Title</TableHead><TableHead>Batch</TableHead><TableHead>Max Marks</TableHead><TableHead>Due Date</TableHead><TableHead>Submissions</TableHead><TableHead>Status</TableHead><TableHead>Action</TableHead></TableRow>
+                <TableRow><TableHead>Title</TableHead><TableHead>Batch</TableHead><TableHead>Max Marks</TableHead><TableHead>Due Date</TableHead><TableHead>Submissions</TableHead><TableHead>Action</TableHead></TableRow>
               </TableHeader>
               <TableBody>
                 {assignments.map((a) => (
@@ -267,7 +269,6 @@ export const AssignmentsPage: React.FC = () => {
                     <TableCell>{a.totalMarks ?? 100}</TableCell>
                     <TableCell className="text-sm">{a.dueDate ? new Date(a.dueDate).toLocaleDateString() : '—'}</TableCell>
                     <TableCell>{a.submissionCount ?? 0}</TableCell>
-                    <TableCell><Badge variant={a.status === 'active' ? 'default' : 'secondary'}>{a.status || 'active'}</Badge></TableCell>
                     <TableCell>
                       <Button size="sm" variant="outline" onClick={() => openSubmissions(a)}>
                         <Eye className="h-4 w-4 mr-1" />View Submissions
@@ -275,7 +276,7 @@ export const AssignmentsPage: React.FC = () => {
                     </TableCell>
                   </TableRow>
                 ))}
-                {assignments.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No assignments yet</TableCell></TableRow>}
+                {assignments.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No assignments yet</TableCell></TableRow>}
               </TableBody>
             </Table>
           </CardContent>

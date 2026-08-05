@@ -5,9 +5,8 @@ import { Button } from '../../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
-import { Input } from '../../components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
-import { Loader2, Send } from 'lucide-react';
+import { Loader2, Send, Paperclip, X } from 'lucide-react';
 import { api } from '../../lib/api';
 import { toast } from 'sonner';
 
@@ -17,12 +16,27 @@ export const StudentAssignmentsPage: React.FC = () => {
   const [submitOpen, setSubmitOpen] = useState<string | null>(null);
   const [submission, setSubmission] = useState({ content: '', fileUrl: '' });
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const load = () => {
     setLoading(true);
     api.student.getAssignments().then((r) => { if (r.success) setAssignments(r.data); }).catch(console.error).finally(() => setLoading(false));
   };
   useEffect(load, []);
+
+  const handleFile = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const res = await api.uploadSubmissionFile(file);
+      setSubmission((s) => ({ ...s, fileUrl: res.fileUrl }));
+      toast.success('File uploaded — attach it with your submission');
+    } catch (err: any) {
+      toast.error(err.message || 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSubmit = async (id: string) => {
     setSaving(true);
@@ -73,9 +87,32 @@ export const StudentAssignmentsPage: React.FC = () => {
                           <DialogContent>
                             <DialogHeader><DialogTitle>Submit: {a.title}</DialogTitle></DialogHeader>
                             <div className="space-y-4 mt-4">
-                              <div><Label>Your Answer *</Label><Textarea value={submission.content} onChange={(e) => setSubmission({...submission, content: e.target.value})} placeholder="Write your answer here..." rows={5} /></div>
-                              <div><Label>File URL (optional)</Label><Input type="url" value={submission.fileUrl} onChange={(e) => setSubmission({...submission, fileUrl: e.target.value})} placeholder="https://..." /></div>
-                              <Button className="w-full" onClick={() => handleSubmit(a.id)} disabled={saving || !submission.content}>
+                              <div><Label>Your Answer</Label><Textarea value={submission.content} onChange={(e) => setSubmission({...submission, content: e.target.value})} placeholder="Write your answer here, or attach a file below..." rows={5} /></div>
+                              <div className="space-y-2">
+                                <Label>Attachment (optional)</Label>
+                                <div className="flex items-center gap-2">
+                                  <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => document.getElementById('assignment-file-input')?.click()}>
+                                    {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Paperclip className="h-4 w-4 mr-1" />}
+                                    {uploading ? 'Uploading...' : 'Choose file'}
+                                  </Button>
+                                  <input
+                                    id="assignment-file-input"
+                                    type="file"
+                                    className="hidden"
+                                    accept=".pdf,.doc,.docx,.ppt,.pptx,.jpg,.jpeg,.png,.mp4,.webm"
+                                    onChange={(e) => handleFile(e.target.files?.[0])}
+                                  />
+                                  {submission.fileUrl && (
+                                    <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+                                      {submission.fileUrl.split('/').pop()}
+                                      <button type="button" onClick={() => setSubmission({ ...submission, fileUrl: '' })} className="text-muted-foreground hover:text-destructive" aria-label="Remove attachment">
+                                        <X className="h-3.5 w-3.5" />
+                                      </button>
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <Button className="w-full" onClick={() => handleSubmit(a.id)} disabled={saving || uploading || (!submission.content.trim() && !submission.fileUrl)}>
                                 {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Submitting...</> : 'Submit Assignment'}
                               </Button>
                             </div>

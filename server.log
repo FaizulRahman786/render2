@@ -1,0 +1,4 @@
+◇ injected env (0) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+✅ Supabase PostgreSQL connected successfully (postgres.js)
+🚀 API Server running on port 3001
+📡 SSE notifications available at /api/notifications/stream

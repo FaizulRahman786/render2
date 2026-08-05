@@ -22,15 +22,20 @@ import {
   Menu,
   X,
   LogOut,
-  User,
   UsersRound,
   Calendar,
   Megaphone,
   Shield,
   Video,
+  Globe,
+  Activity,
+  Search,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { NotificationBell } from './NotificationBell';
+import { GlobalSearch } from './GlobalSearch';
+import { CommandPalette } from './CommandPalette';
+import { useSeo } from '../public/useSeo';
 
 const navigation = [
   { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
@@ -43,7 +48,9 @@ const navigation = [
   { name: 'Fees', href: '/admin/fees', icon: DollarSign },
   { name: 'Live Classes', href: '/admin/live-classes', icon: Video },
   { name: 'Broadcast', href: '/admin/broadcast', icon: Megaphone },
+  { name: 'Website', href: '/admin/website', icon: Globe },
   { name: 'Audit Logs', href: '/admin/audit-logs', icon: Shield },
+  { name: 'System', href: '/admin/system', icon: Activity },
   { name: 'Settings', href: '/admin/settings', icon: Settings },
 ];
 
@@ -53,12 +60,15 @@ export const AdminLayout: React.FC = () => {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  useSeo({ title: 'Admin Panel', robots: 'noindex,nofollow' });
+
   const handleLogout = () => {
     logout();
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <CommandPalette />
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
@@ -132,9 +142,22 @@ export const AdminLayout: React.FC = () => {
               <Menu className="h-6 w-6" />
             </Button>
 
-            <div className="flex-1 lg:ml-0" />
+            <div className="flex-1 lg:ml-0 hidden md:block">
+              <GlobalSearch />
+            </div>
 
             <div className="flex items-center space-x-4">
+              <Button
+                variant="outline"
+                className="hidden lg:inline-flex items-center gap-2 text-muted-foreground"
+                onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }))}
+              >
+                <Search className="h-4 w-4" />
+                Quick find
+                <kbd className="hidden xl:inline-flex px-1.5 py-0.5 text-[10px] font-semibold text-gray-400 bg-gray-100 rounded">
+                  Ctrl K
+                </kbd>
+              </Button>
               <NotificationBell />
 
               {/* User menu */}
@@ -143,7 +166,7 @@ export const AdminLayout: React.FC = () => {
                   <Button variant="ghost" className="flex items-center space-x-2">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback className="bg-gradient-to-br from-blue-600 to-purple-600 text-white">
-                        {user?.name.charAt(0).toUpperCase()}
+                        {(user?.name?.[0] ?? '?').toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="hidden md:block text-left">
@@ -155,11 +178,7 @@ export const AdminLayout: React.FC = () => {
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>My Account</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <User className="mr-2 h-4 w-4" />
-                    Profile
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/admin/settings')}>
                     <Settings className="mr-2 h-4 w-4" />
                     Settings
                   </DropdownMenuItem>

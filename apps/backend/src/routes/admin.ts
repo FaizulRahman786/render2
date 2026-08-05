@@ -1,10 +1,24 @@
 import { Router } from 'express';
 import type { Router as ExpressRouter } from 'express';
-import { eq, desc, count, sql, and, ne, ilike, or, asc, inArray } from 'drizzle-orm';
+import { eq, desc, count, sql, and, ne, ilike, or, asc, inArray, gte } from 'drizzle-orm';
 import { db, schema } from '../db/index.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { asyncHandler, ApiError } from '../middleware/error.js';
 import { emitToUser, emitToUsers } from '../ws/wsManager.js';
+import { provisionAccount } from '../services/accountProvisioningService.js';
+import { deleteCloudinaryAsset } from '../lib/storage.js';
+import { storeLibraryFile, removeLocalFile } from '../lib/storage.js';
+import { upload } from './upload.js';
+import { validate } from '../middleware/validation.js';
+import {
+  createStudentSchema, updateStudentSchema, restoreUserSchema,
+  createTeacherSchema, updateTeacherSchema,
+  createCourseSchema, updateCourseSchema,
+  createBatchSchema, updateBatchSchema, addBatchTeacherSchema, addBatchStudentSchema,
+  createMaterialSchema, createFeeSchema, createPaymentSchema,
+  subjectBodySchema, updateSubjectSchema, chapterBodySchema, updateChapterSchema,
+  broadcastNotificationSchema,
+} from '../validation/schemas.js';
 
 async function logAudit(userId: string | undefined, userRole: string | undefined, action: string, entity: string, entityId?: string, details?: string, ipAddress?: string) {
   try {
@@ -27,8 +41,41 @@ function paginationMeta(total: number, page: number, limit: number) {
   return { page, limit, total, totalPages: Math.ceil(total / limit) };
 }
 
+// Escape SQL wildcards (%) and (_) to prevent wildcard injection in search queries
+function sanitizeSearch(term: string): string {
+  return term.replace(/[%_]/g, '\\$&');
+}
+
 const router: ExpressRouter = Router();
 router.use(authenticate, requireAdmin);
+
+// ── Media library upload (POST /admin/media) ───────────────────────────────
+// Backend twin of POST /upload/media for API-surface parity with the docs.
+// Admins only (router-level guard above). Stores to Cloudinary-first with
+// local-disk fallback and records the asset into media_assets.
+router.post('/media', upload.single('file'), asyncHandler(async (req, res) => {
+  if (!req.file) throw new ApiError(400, 'No file uploaded');
+  const stored = await storeLibraryFile(req.file.path, { localBaseUrl: '/api/uploads' });
+  if (!stored.storedLocally) removeLocalFile(req.file.path);
+  const publicId = stored.cloudinaryId ?? `local-${req.file.filename}`;
+  const resourceType = req.file.mimetype.startsWith('image')
+    ? 'image'
+    : req.file.mimetype.startsWith('video')
+      ? 'video'
+      : 'raw';
+  const [asset] = await db.insert(schema.mediaAssets).values({
+    publicId,
+    url: stored.fileUrl,
+    resourceType,
+    format: stored.format,
+    bytes: stored.bytes ?? req.file.size,
+    width: stored.width,
+    height: stored.height,
+    uploadedBy: req.user!.id,
+  }).returning();
+  await logAudit(req.user!.id, req.user!.role, 'CREATE', 'media', asset.id, publicId, req.ip);
+  res.status(201).json({ success: true, data: asset, message: 'Media uploaded' });
+}));
 
 // ── Dashboard Stats ────────────────────────────────────────────────────────
 router.get('/dashboard', asyncHandler(async (req, res) => {
@@ -40,17 +87,69 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
     db.select({ total: count() }).from(schema.tests),
   ]);
 
-  const pendingFees = await db.select({ total: sql<number>`COALESCE(SUM(${schema.fees.finalAmount}), 0)` }).from(schema.fees);
-  const upcomingClasses = await db.select({ total: count() }).from(schema.liveClasses).where(eq(schema.liveClasses.status, 'scheduled'));
-  const pendingDoubts = await db.select({ total: count() }).from(schema.doubts).where(eq(schema.doubts.status, 'open'));
+  // M1: outstanding fees = SUM(MAX(final_amount - paid, 0)) across all fees,
+  // NOT the raw SUM(final_amount) (which ignores recorded payments).
+  const pendingFees = await db.execute(sql`
+    SELECT COALESCE(SUM(GREATEST(f."final_amount"::numeric - COALESCE(p."paid", 0), 0)), 0)::float8 AS total
+    FROM "fees" f
+    LEFT JOIN (
+      SELECT "fee_id", SUM("amount"::numeric) AS "paid"
+      FROM "payments"
+      GROUP BY "fee_id"
+    ) p ON p."fee_id" = f."id"
+  `);
+  const pendingFeesTotal = Number(pendingFees?.[0]?.total ?? 0);
+
+  const [
+    upcomingClassesRows, pendingDoubtsRows, activeCoursesRows,
+    publishedNoticesRows, upcomingEventsRows, newEnquiriesRows, mediaAssetsRows,
+  ] = await Promise.all([
+    db.select({ total: count() }).from(schema.liveClasses).where(eq(schema.liveClasses.status, 'scheduled')),
+    db.select({ total: count() }).from(schema.doubts).where(eq(schema.doubts.status, 'open')),
+    db.select({ total: count() }).from(schema.courses).where(eq(schema.courses.status, 'active')),
+    db.select({ total: count() }).from(schema.notices).where(eq(schema.notices.status, 'published')),
+    db.select({ total: count() }).from(schema.events)
+      .where(and(eq(schema.events.status, 'published'), gte(schema.events.eventDate, sql`now()::date`))),
+    db.select({ total: count() }).from(schema.enquiries).where(eq(schema.enquiries.status, 'new')),
+    db.select({ total: count() }).from(schema.mediaAssets),
+  ]);
+
+  const upcomingClasses = upcomingClassesRows[0]?.total ?? 0;
+  const pendingDoubts = pendingDoubtsRows[0]?.total ?? 0;
+  const activeCourses = activeCoursesRows[0]?.total ?? 0;
+  const publishedNotices = publishedNoticesRows[0]?.total ?? 0;
+  const upcomingEvents = upcomingEventsRows[0]?.total ?? 0;
+  const newEnquiries = newEnquiriesRows[0]?.total ?? 0;
+  const mediaAssets = mediaAssetsRows[0]?.total ?? 0;
+
+  // Recent administrative activity (real audit trail) for the dashboard feed.
+  const recentActivity = await db.select({
+    id: schema.auditLogs.id,
+    action: schema.auditLogs.action,
+    entity: schema.auditLogs.entity,
+    entityId: schema.auditLogs.entityId,
+    details: schema.auditLogs.details,
+    createdAt: schema.auditLogs.createdAt,
+    userName: schema.users.name,
+  })
+    .from(schema.auditLogs)
+    .leftJoin(schema.users, eq(schema.auditLogs.userId, schema.users.id))
+    .orderBy(desc(schema.auditLogs.createdAt))
+    .limit(6);
 
   res.json({
     success: true,
     data: {
       totalStudents, totalTeachers, totalCourses, totalBatches, totalTests,
-      pendingFees: pendingFees[0]?.total ?? 0,
-      upcomingClasses: upcomingClasses[0]?.total ?? 0,
-      pendingDoubts: pendingDoubts[0]?.total ?? 0,
+      activeCourses,
+      pendingFees: pendingFeesTotal,
+      upcomingClasses,
+      pendingDoubts,
+      publishedNotices,
+      upcomingEvents,
+      newEnquiries,
+      mediaAssets,
+      recentActivity,
     },
   });
 }));
@@ -58,14 +157,17 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
 // ── Students ───────────────────────────────────────────────────────────────
 router.get('/students', asyncHandler(async (req, res) => {
   const { page, limit, offset, search, status, order } = parsePagination(req.query);
+  const exportAll = req.query.all === 'true';
 
   const conditions: any[] = [eq(schema.users.role, 'student')];
+  // F1: soft-deleted (deactivated) users are hidden by default; pass ?status=inactive to include.
+  if (!status) conditions.push(ne(schema.users.status, 'inactive'));
   if (status) conditions.push(eq(schema.users.status, status as any));
   if (search) {
     conditions.push(or(
-      ilike(schema.users.name, `%${search}%`),
-      ilike(schema.users.email, `%${search}%`),
-      ilike(schema.users.phone, `%${search}%`),
+      ilike(schema.users.name, `%${sanitizeSearch(search)}%`),
+      ilike(schema.users.email, `%${sanitizeSearch(search)}%`),
+      ilike(schema.users.phone, `%${sanitizeSearch(search)}%`),
     )!);
   }
 
@@ -90,34 +192,55 @@ router.get('/students', asyncHandler(async (req, res) => {
     .leftJoin(schema.studentProfiles, eq(schema.users.id, schema.studentProfiles.userId))
     .where(where)
     .orderBy(order === 'asc' ? asc(schema.users.createdAt) : desc(schema.users.createdAt))
-    .limit(limit)
-    .offset(offset);
+    .limit(exportAll ? Math.min(total, 10000) : limit)
+    .offset(exportAll ? 0 : offset);
 
   res.json({ success: true, data, pagination: paginationMeta(total, page, limit) });
 }));
 
-router.post('/students', asyncHandler(async (req, res) => {
-  const { name, email, phone, parentName, parentPhone, address, courseId } = req.body;
-  if (!name || !email || !phone) throw new ApiError(400, 'name, email, and phone are required');
-  const [user] = await db.insert(schema.users).values({ name, email: email.toLowerCase(), phone, password: '', role: 'student' }).returning();
-  await db.insert(schema.studentProfiles).values({ userId: user.id, parentName, parentPhone, address, courseId });
-  await logAudit(req.user!.id, req.user!.role, 'CREATE', 'student', user.id, name, req.ip);
+router.post('/students', validate(createStudentSchema), asyncHandler(async (req, res) => {
+  // Role is hard-coded 'student'. If the caller tries to smuggle one in for a
+  // different role, reject it (no role parameter accepted, no escalation).
+  if (req.body.role && req.body.role !== 'student') {
+    throw new ApiError(400, 'role cannot be set on student creation');
+  }
+  const { name, email, phone, password, parentName, parentPhone, address, courseId } = req.body;
+  const user = await provisionAccount('student', { name, email, phone, password, parentName, parentPhone, address, courseId });
+  await logAudit(req.user!.id, req.user!.role, 'CREATE', 'student', user.id, user.name, req.ip);
   res.status(201).json({ success: true, data: { id: user.id, name: user.name, email: user.email } });
 }));
 
-router.put('/students/:id', asyncHandler(async (req, res) => {
+router.put('/students/:id', validate(updateStudentSchema), asyncHandler(async (req, res) => {
   const id = String(req.params.id);
   const { name, phone, status, parentName, parentPhone, address, courseId } = req.body;
   await db.update(schema.users).set({ name, phone, status, updatedAt: new Date() }).where(eq(schema.users.id, id));
-  await db.update(schema.studentProfiles).set({ parentName, parentPhone, address, courseId }).where(eq(schema.studentProfiles.userId, id));
+  if (parentName !== undefined || parentPhone !== undefined || address !== undefined || courseId !== undefined) {
+    await db.update(schema.studentProfiles).set({ parentName, parentPhone, address, courseId }).where(eq(schema.studentProfiles.userId, id));
+  }
   res.json({ success: true, message: 'Student updated' });
 }));
 
 router.delete('/students/:id', asyncHandler(async (req, res) => {
   const id = String(req.params.id);
-  await db.delete(schema.users).where(and(eq(schema.users.id, id), eq(schema.users.role, 'student')));
-  await logAudit(req.user!.id, req.user!.role, 'DELETE', 'student', id, undefined, req.ip);
-  res.json({ success: true, message: 'Student deleted' });
+  // F1: soft delete — deactivate the account, preserve academic history.
+  const [updated] = await db.update(schema.users)
+    .set({ status: 'inactive', deletedAt: new Date(), deletedBy: req.user!.id, updatedAt: new Date() })
+    .where(and(eq(schema.users.id, id), eq(schema.users.role, 'student')))
+    .returning();
+  if (!updated) throw new ApiError(404, 'Student not found');
+  await logAudit(req.user!.id, req.user!.role, 'DELETE', 'student', id, updated.name, req.ip);
+  res.json({ success: true, message: 'Student deactivated' });
+}));
+
+router.post('/students/:id/restore', validate(restoreUserSchema), asyncHandler(async (req, res) => {
+  const id = String(req.params.id);
+  const [updated] = await db.update(schema.users)
+    .set({ status: 'active', deletedAt: null, deletedBy: null, updatedAt: new Date() })
+    .where(and(eq(schema.users.id, id), eq(schema.users.role, 'student')))
+    .returning();
+  if (!updated) throw new ApiError(404, 'Student not found');
+  await logAudit(req.user!.id, req.user!.role, 'RESTORE', 'student', id, updated.name, req.ip);
+  res.json({ success: true, message: 'Student restored' });
 }));
 
 // All students list (no pagination, for dropdowns)
@@ -125,7 +248,7 @@ router.get('/students/all', asyncHandler(async (req, res) => {
   const data = await db
     .select({ id: schema.users.id, name: schema.users.name, email: schema.users.email, phone: schema.users.phone })
     .from(schema.users)
-    .where(eq(schema.users.role, 'student'))
+    .where(and(eq(schema.users.role, 'student'), ne(schema.users.status, 'inactive')))
     .orderBy(asc(schema.users.name));
   res.json({ success: true, data });
 }));
@@ -133,14 +256,17 @@ router.get('/students/all', asyncHandler(async (req, res) => {
 // ── Teachers ───────────────────────────────────────────────────────────────
 router.get('/teachers', asyncHandler(async (req, res) => {
   const { page, limit, offset, search, status, order } = parsePagination(req.query);
+  const exportAll = req.query.all === 'true';
 
   const conditions: any[] = [eq(schema.users.role, 'teacher')];
+  // F1: soft-deleted (deactivated) users are hidden by default; pass ?status=inactive to include.
+  if (!status) conditions.push(ne(schema.users.status, 'inactive'));
   if (status) conditions.push(eq(schema.users.status, status as any));
   if (search) {
     conditions.push(or(
-      ilike(schema.users.name, `%${search}%`),
-      ilike(schema.users.email, `%${search}%`),
-      ilike(schema.users.phone, `%${search}%`),
+      ilike(schema.users.name, `%${sanitizeSearch(search)}%`),
+      ilike(schema.users.email, `%${sanitizeSearch(search)}%`),
+      ilike(schema.users.phone, `%${sanitizeSearch(search)}%`),
     )!);
   }
 
@@ -164,8 +290,8 @@ router.get('/teachers', asyncHandler(async (req, res) => {
     .leftJoin(schema.teacherProfiles, eq(schema.users.id, schema.teacherProfiles.userId))
     .where(where)
     .orderBy(order === 'asc' ? asc(schema.users.createdAt) : desc(schema.users.createdAt))
-    .limit(limit)
-    .offset(offset);
+    .limit(exportAll ? Math.min(total, 10000) : limit)
+    .offset(exportAll ? 0 : offset);
 
   res.json({ success: true, data, pagination: paginationMeta(total, page, limit) });
 }));
@@ -175,33 +301,53 @@ router.get('/teachers/all', asyncHandler(async (req, res) => {
   const data = await db
     .select({ id: schema.users.id, name: schema.users.name, email: schema.users.email })
     .from(schema.users)
-    .where(eq(schema.users.role, 'teacher'))
+    .where(and(eq(schema.users.role, 'teacher'), ne(schema.users.status, 'inactive')))
     .orderBy(asc(schema.users.name));
   res.json({ success: true, data });
 }));
 
-router.post('/teachers', asyncHandler(async (req, res) => {
-  const { name, email, phone, qualification, experience, specialization } = req.body;
-  if (!name || !email || !phone) throw new ApiError(400, 'name, email, and phone are required');
-  const [user] = await db.insert(schema.users).values({ name, email: email.toLowerCase(), phone, password: '', role: 'teacher' }).returning();
-  await db.insert(schema.teacherProfiles).values({ userId: user.id, qualification, experience: experience ? parseInt(experience) : null, specialization });
-  await logAudit(req.user!.id, req.user!.role, 'CREATE', 'teacher', user.id, name, req.ip);
+router.post('/teachers', validate(createTeacherSchema), asyncHandler(async (req, res) => {
+  // E1: role hard-coded 'teacher'; body role is rejected.
+  if (req.body.role && req.body.role !== 'teacher') {
+    throw new ApiError(400, 'role cannot be set on teacher creation');
+  }
+  const { name, email, phone, password, qualification, experience, specialization } = req.body;
+  const user = await provisionAccount('teacher', { name, email, phone, password, qualification, experience, specialization });
+  await logAudit(req.user!.id, req.user!.role, 'CREATE', 'teacher', user.id, user.name, req.ip);
   res.status(201).json({ success: true, data: { id: user.id, name: user.name, email: user.email } });
 }));
 
-router.put('/teachers/:id', asyncHandler(async (req, res) => {
+router.put('/teachers/:id', validate(updateTeacherSchema), asyncHandler(async (req, res) => {
   const id = String(req.params.id);
   const { name, phone, status, qualification, experience, specialization } = req.body;
   await db.update(schema.users).set({ name, phone, status, updatedAt: new Date() }).where(eq(schema.users.id, id));
-  await db.update(schema.teacherProfiles).set({ qualification, experience, specialization }).where(eq(schema.teacherProfiles.userId, id));
+  if (qualification !== undefined || experience !== undefined || specialization !== undefined) {
+    await db.update(schema.teacherProfiles).set({ qualification, experience, specialization }).where(eq(schema.teacherProfiles.userId, id));
+  }
   res.json({ success: true, message: 'Teacher updated' });
 }));
 
 router.delete('/teachers/:id', asyncHandler(async (req, res) => {
   const id = String(req.params.id);
-  await db.delete(schema.users).where(and(eq(schema.users.id, id), eq(schema.users.role, 'teacher')));
-  await logAudit(req.user!.id, req.user!.role, 'DELETE', 'teacher', id, undefined, req.ip);
-  res.json({ success: true, message: 'Teacher deleted' });
+  // F1: soft delete — deactivate the account, preserve academic history.
+  const [updated] = await db.update(schema.users)
+    .set({ status: 'inactive', deletedAt: new Date(), deletedBy: req.user!.id, updatedAt: new Date() })
+    .where(and(eq(schema.users.id, id), eq(schema.users.role, 'teacher')))
+    .returning();
+  if (!updated) throw new ApiError(404, 'Teacher not found');
+  await logAudit(req.user!.id, req.user!.role, 'DELETE', 'teacher', id, updated.name, req.ip);
+  res.json({ success: true, message: 'Teacher deactivated' });
+}));
+
+router.post('/teachers/:id/restore', validate(restoreUserSchema), asyncHandler(async (req, res) => {
+  const id = String(req.params.id);
+  const [updated] = await db.update(schema.users)
+    .set({ status: 'active', deletedAt: null, deletedBy: null, updatedAt: new Date() })
+    .where(and(eq(schema.users.id, id), eq(schema.users.role, 'teacher')))
+    .returning();
+  if (!updated) throw new ApiError(404, 'Teacher not found');
+  await logAudit(req.user!.id, req.user!.role, 'RESTORE', 'teacher', id, updated.name, req.ip);
+  res.json({ success: true, message: 'Teacher restored' });
 }));
 
 // ── Courses ────────────────────────────────────────────────────────────────
@@ -217,7 +363,7 @@ router.get('/courses', asyncHandler(async (req, res) => {
 
   const conditions: any[] = [];
   if (status) conditions.push(eq(schema.courses.status, status as any));
-  if (search) conditions.push(ilike(schema.courses.name, `%${search}%`));
+  if (search) conditions.push(ilike(schema.courses.name, `%${sanitizeSearch(search)}%`));
 
   const where = conditions.length ? and(...conditions) : undefined;
 
@@ -230,18 +376,19 @@ router.get('/courses', asyncHandler(async (req, res) => {
   res.json({ success: true, data, pagination: paginationMeta(total, page, limit) });
 }));
 
-router.post('/courses', asyncHandler(async (req, res) => {
+router.post('/courses', validate(createCourseSchema), asyncHandler(async (req, res) => {
   const { name, description, classLevel, duration, fee } = req.body;
   if (!name || !description) throw new ApiError(400, 'name and description are required');
-  const [course] = await db.insert(schema.courses).values({ name, description, classLevel, duration, fee: fee?.toString() || '0' }).returning();
+  const [course] = await db.insert(schema.courses).values({ name, description, classLevel, duration: duration ?? null, fee: fee?.toString() || '0' }).returning();
   await logAudit(req.user!.id, req.user!.role, 'CREATE', 'course', course.id, name, req.ip);
   res.status(201).json({ success: true, data: course });
 }));
 
-router.put('/courses/:id', asyncHandler(async (req, res) => {
+router.put('/courses/:id', validate(updateCourseSchema), asyncHandler(async (req, res) => {
   const id = String(req.params.id);
   const { name, description, classLevel, duration, fee, status } = req.body;
-  await db.update(schema.courses).set({ name, description, classLevel, duration, fee: fee?.toString(), status, updatedAt: new Date() }).where(eq(schema.courses.id, id));
+  await db.update(schema.courses).set({ name, description, classLevel, duration: duration ?? null, fee: fee?.toString(), status, updatedAt: new Date() }).where(eq(schema.courses.id, id));
+  await logAudit(req.user!.id, req.user!.role, 'UPDATE', 'course', id, name, req.ip);
   res.json({ success: true, message: 'Course updated' });
 }));
 
@@ -268,7 +415,7 @@ router.get('/batches', asyncHandler(async (req, res) => {
 
   const conditions: any[] = [];
   if (status) conditions.push(eq(schema.batches.status, status as any));
-  if (search) conditions.push(ilike(schema.batches.name, `%${search}%`));
+  if (search) conditions.push(ilike(schema.batches.name, `%${sanitizeSearch(search)}%`));
   const where = conditions.length ? and(...conditions) : undefined;
 
   const [{ total }] = await db.select({ total: count() }).from(schema.batches).where(where);
@@ -293,7 +440,7 @@ router.get('/batches', asyncHandler(async (req, res) => {
   res.json({ success: true, data: batchList, pagination: paginationMeta(total, page, limit) });
 }));
 
-router.post('/batches', asyncHandler(async (req, res) => {
+router.post('/batches', validate(createBatchSchema), asyncHandler(async (req, res) => {
   const { name, courseId, timing, startDate, endDate, description, teacherIds, studentIds } = req.body;
   if (!name || !courseId) throw new ApiError(400, 'name and courseId are required');
   const [batch] = await db.insert(schema.batches).values({ name, courseId, timing, startDate, endDate, description }).returning();
@@ -307,7 +454,7 @@ router.post('/batches', asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: batch });
 }));
 
-router.put('/batches/:id', asyncHandler(async (req, res) => {
+router.put('/batches/:id', validate(updateBatchSchema), asyncHandler(async (req, res) => {
   const { name, timing, startDate, endDate, description, status } = req.body;
   const batchId = String(req.params.id);
   await db.update(schema.batches).set({ name, timing, startDate, endDate, description, status, updatedAt: new Date() }).where(eq(schema.batches.id, batchId));
@@ -337,7 +484,7 @@ router.get('/batches/:id/members', asyncHandler(async (req, res) => {
   res.json({ success: true, data: { teachers, students } });
 }));
 
-router.post('/batches/:id/teachers', asyncHandler(async (req, res) => {
+router.post('/batches/:id/teachers', validate(addBatchTeacherSchema), asyncHandler(async (req, res) => {
   const { teacherId } = req.body;
   const batchId = String(req.params.id);
   if (!teacherId) throw new ApiError(400, 'teacherId is required');
@@ -356,7 +503,7 @@ router.delete('/batches/:id/teachers/:teacherId', asyncHandler(async (req, res) 
   res.json({ success: true, message: 'Teacher removed from batch' });
 }));
 
-router.post('/batches/:id/students', asyncHandler(async (req, res) => {
+router.post('/batches/:id/students', validate(addBatchStudentSchema), asyncHandler(async (req, res) => {
   const { studentId } = req.body;
   const batchId = String(req.params.id);
   if (!studentId) throw new ApiError(400, 'studentId is required');
@@ -381,7 +528,7 @@ router.get('/materials', asyncHandler(async (req, res) => {
 
   const conditions: any[] = [];
   if (fileType) conditions.push(eq(schema.materials.fileType, fileType as any));
-  if (search) conditions.push(ilike(schema.materials.title, `%${search}%`));
+  if (search) conditions.push(ilike(schema.materials.title, `%${sanitizeSearch(search)}%`));
   const where = conditions.length ? and(...conditions) : undefined;
 
   const [{ total }] = await db.select({ total: count() }).from(schema.materials).where(where);
@@ -405,12 +552,13 @@ router.get('/materials', asyncHandler(async (req, res) => {
   res.json({ success: true, data, pagination: paginationMeta(total, page, limit) });
 }));
 
-router.post('/materials', asyncHandler(async (req, res) => {
-  const { title, description, fileUrl, fileType, fileName, fileSize, courseId, batchId, visibility } = req.body;
+router.post('/materials', validate(createMaterialSchema), asyncHandler(async (req, res) => {
+  const { title, description, fileUrl, fileType, fileName, fileSize, courseId, batchId, visibility, cloudinaryId } = req.body;
   if (!title || !fileUrl || !fileName) throw new ApiError(400, 'title, fileUrl, and fileName are required');
   const [mat] = await db.insert(schema.materials).values({
     title, description, fileUrl, fileType: fileType || 'document', fileName,
-    fileSize, courseId, batchId, visibility: visibility !== false, uploadedBy: req.user!.id,
+    fileSize, courseId, batchId, visibility: visibility !== false, cloudinaryId: cloudinaryId || '',
+    uploadedBy: req.user!.id,
   }).returning();
   await logAudit(req.user!.id, req.user!.role, 'CREATE', 'material', mat.id, title, req.ip);
   res.status(201).json({ success: true, data: mat });
@@ -418,7 +566,14 @@ router.post('/materials', asyncHandler(async (req, res) => {
 
 router.delete('/materials/:id', asyncHandler(async (req, res) => {
   const materialId = String(req.params.id);
+  const [material] = await db
+    .select({ cloudinaryId: schema.materials.cloudinaryId })
+    .from(schema.materials)
+    .where(eq(schema.materials.id, materialId))
+    .limit(1);
   await db.delete(schema.materials).where(eq(schema.materials.id, materialId));
+  // Best-effort cleanup of the remote asset (no-op for local files).
+  await deleteCloudinaryAsset(material?.cloudinaryId);
   await logAudit(req.user!.id, req.user!.role, 'DELETE', 'material', materialId, undefined, req.ip);
   res.json({ success: true, message: 'Material deleted' });
 }));
@@ -449,7 +604,7 @@ router.get('/live-classes', asyncHandler(async (req, res) => {
 
   const conditions: any[] = [];
   if (status) conditions.push(eq(schema.liveClasses.status, status as any));
-  if (search) conditions.push(ilike(schema.liveClasses.title, `%${search}%`));
+  if (search) conditions.push(ilike(schema.liveClasses.title, `%${sanitizeSearch(search)}%`));
   const where = conditions.length ? and(...conditions) : undefined;
 
   const [{ total }] = await db.select({ total: count() }).from(schema.liveClasses).where(where);
@@ -479,7 +634,7 @@ router.get('/tests', asyncHandler(async (req, res) => {
 
   const conditions: any[] = [];
   if (status) conditions.push(eq(schema.tests.status, status as any));
-  if (search) conditions.push(ilike(schema.tests.title, `%${search}%`));
+  if (search) conditions.push(ilike(schema.tests.title, `%${sanitizeSearch(search)}%`));
   const where = conditions.length ? and(...conditions) : undefined;
 
   const [{ total }] = await db.select({ total: count() }).from(schema.tests).where(where);
@@ -536,7 +691,7 @@ router.get('/fees', asyncHandler(async (req, res) => {
 
   const conditions: any[] = [];
   if (search) {
-    conditions.push(ilike(schema.users.name, `%${search}%`));
+    conditions.push(ilike(schema.users.name, `%${sanitizeSearch(search)}%`));
   }
   const where = conditions.length ? and(...conditions) : undefined;
 
@@ -567,7 +722,7 @@ router.get('/fees', asyncHandler(async (req, res) => {
   });
 }));
 
-router.post('/fees', asyncHandler(async (req, res) => {
+router.post('/fees', validate(createFeeSchema), asyncHandler(async (req, res) => {
   const { studentId, courseId, totalAmount, discount, dueDate } = req.body;
   if (!studentId || !totalAmount) throw new ApiError(400, 'studentId and totalAmount are required');
   const disc = parseFloat(discount || '0');
@@ -577,13 +732,13 @@ router.post('/fees', asyncHandler(async (req, res) => {
   if (disc > total) throw new ApiError(400, 'discount cannot exceed totalAmount');
   const final = total - disc;
   const [fee] = await db.insert(schema.fees).values({
-    studentId, courseId, totalAmount: total.toString(), discount: disc.toString(), finalAmount: final.toString(), dueDate,
+    studentId, courseId, totalAmount: total.toString(), discount: disc.toString(), finalAmount: final.toString(), dueDate: dueDate ? new Date(dueDate) : undefined,
   }).returning();
   await logAudit(req.user!.id, req.user!.role, 'CREATE', 'fee', fee.id, `₹${final} for studentId=${studentId}`, req.ip);
   res.status(201).json({ success: true, data: fee });
 }));
 
-router.post('/fees/:feeId/payments', asyncHandler(async (req, res) => {
+router.post('/fees/:feeId/payments', validate(createPaymentSchema), asyncHandler(async (req, res) => {
   const { amount, paymentMode, transactionId, receiptNumber, notes } = req.body;
   const feeId = String(req.params.feeId);
   if (!amount || !paymentMode) throw new ApiError(400, 'amount and paymentMode are required');
@@ -593,6 +748,19 @@ router.post('/fees/:feeId/payments', asyncHandler(async (req, res) => {
   if (!allowedModes.includes(paymentMode)) throw new ApiError(400, `paymentMode must be one of: ${allowedModes.join(', ')}`);
   const [fee] = await db.select().from(schema.fees).where(eq(schema.fees.id, feeId)).limit(1);
   if (!fee) throw new ApiError(404, 'Fee record not found');
+
+  // M1: reject overpayment — paid + this amount may never exceed final_amount.
+  // studentId is derived from the fee row; the body's studentId is never trusted.
+  const [{ total: paidTotal }] = await db
+    .select({ total: sql<string>`COALESCE(SUM(${schema.payments.amount}::numeric), 0)::text` })
+    .from(schema.payments)
+    .where(eq(schema.payments.feeId, fee.id));
+  const alreadyPaid = Number(paidTotal ?? 0);
+  const finalAmount = Number(fee.finalAmount);
+  if (alreadyPaid + parsedAmount > finalAmount) {
+    throw new ApiError(422, `Payment exceeds the outstanding balance (outstanding: ${Math.max(finalAmount - alreadyPaid, 0).toFixed(2)})`);
+  }
+
   const [payment] = await db.insert(schema.payments).values({
     feeId: fee.id, studentId: fee.studentId, amount: amount.toString(),
     paymentMode, transactionId, receiptNumber, notes, recordedBy: req.user!.id,
@@ -635,7 +803,7 @@ router.get('/courses/:courseId/subjects', asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 }));
 
-router.post('/courses/:courseId/subjects', asyncHandler(async (req, res) => {
+router.post('/courses/:courseId/subjects', validate(subjectBodySchema), asyncHandler(async (req, res) => {
   const courseId = String(req.params.courseId);
   const { name, description } = req.body;
   if (!name) throw new ApiError(400, 'name is required');
@@ -646,10 +814,12 @@ router.post('/courses/:courseId/subjects', asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: sub });
 }));
 
-router.put('/courses/:courseId/subjects/:subId', asyncHandler(async (req, res) => {
+router.put('/courses/:courseId/subjects/:subId', validate(updateSubjectSchema), asyncHandler(async (req, res) => {
   const subId = String(req.params.subId);
   const { name, description } = req.body;
-  await db.update(schema.subjects).set({ name, description }).where(eq(schema.subjects.id, subId));
+  if (name !== undefined || description !== undefined) {
+    await db.update(schema.subjects).set({ name, description }).where(eq(schema.subjects.id, subId));
+  }
   res.json({ success: true, message: 'Subject updated' });
 }));
 
@@ -667,7 +837,7 @@ router.get('/subjects/:subjectId/chapters', asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 }));
 
-router.post('/subjects/:subjectId/chapters', asyncHandler(async (req, res) => {
+router.post('/subjects/:subjectId/chapters', validate(chapterBodySchema), asyncHandler(async (req, res) => {
   const subjectId = String(req.params.subjectId);
   const { title, description, videoUrl, duration } = req.body;
   if (!title) throw new ApiError(400, 'title is required');
@@ -677,7 +847,7 @@ router.post('/subjects/:subjectId/chapters', asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: ch });
 }));
 
-router.put('/subjects/:subjectId/chapters/:chapterId', asyncHandler(async (req, res) => {
+router.put('/subjects/:subjectId/chapters/:chapterId', validate(updateChapterSchema), asyncHandler(async (req, res) => {
   const chapterId = String(req.params.chapterId);
   const { title, description, videoUrl, duration } = req.body;
   await db.update(schema.chapters).set({ title, description, videoUrl, duration: duration ? parseInt(duration) : null }).where(eq(schema.chapters.id, chapterId));
@@ -691,7 +861,7 @@ router.delete('/subjects/:subjectId/chapters/:chapterId', asyncHandler(async (re
 }));
 
 // ── Notification Broadcast ──────────────────────────────────────────────────
-router.post('/notifications/broadcast', asyncHandler(async (req, res) => {
+router.post('/notifications/broadcast', validate(broadcastNotificationSchema), asyncHandler(async (req, res) => {
   const { title, message, type = 'info', targetRole, batchId } = req.body;
   if (!title || !message) throw new ApiError(400, 'title and message required');
   // Prevent targeting admin accounts — broadcasts are for students/teachers only
@@ -743,9 +913,9 @@ router.get('/audit-logs', asyncHandler(async (req, res) => {
   }
   if (search) {
     conditions.push(or(
-      ilike(schema.auditLogs.action, `%${search}%`),
-      ilike(schema.auditLogs.details, `%${search}%`),
-      ilike(schema.users.name, `%${search}%`),
+      ilike(schema.auditLogs.action, `%${sanitizeSearch(search)}%`),
+      ilike(schema.auditLogs.details, `%${sanitizeSearch(search)}%`),
+      ilike(schema.users.name, `%${sanitizeSearch(search)}%`),
     )!);
   }
   const where = conditions.length ? and(...conditions) : undefined;

@@ -35,6 +35,7 @@ import { cn } from '../../lib/utils';
 import { NotificationBell } from './NotificationBell';
 import { api } from '../../lib/api';
 import { toast } from 'sonner';
+import { useSeo } from '../public/useSeo';
 
 const navigation = [
   { name: 'Dashboard', href: '/student', icon: LayoutDashboard },
@@ -55,6 +56,8 @@ export const StudentLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useSeo({ title: 'Student Portal', robots: 'noindex,nofollow' });
 
   // Profile completion state
   const [profileLoading, setProfileLoading] = useState(true);
@@ -243,7 +246,7 @@ export const StudentLayout: React.FC = () => {
                   <Button variant="ghost" className="flex items-center space-x-2">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback className="bg-gradient-to-br from-orange-600 to-pink-600 text-white">
-                        {user?.name.charAt(0).toUpperCase()}
+                        {(user?.name?.[0] ?? '?').toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="hidden md:block text-left">
@@ -300,7 +303,7 @@ export const StudentLayout: React.FC = () => {
                     <Input
                       id="complete-name"
                       type="text"
-                      placeholder="John Doe"
+                      placeholder="Your full name"
                       value={profileForm.name}
                       onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
                       required
@@ -313,7 +316,7 @@ export const StudentLayout: React.FC = () => {
                     <Input
                       id="complete-phone"
                       type="tel"
-                      placeholder="+91 98765 43210"
+                      placeholder="10-digit mobile number"
                       value={profileForm.phone}
                       onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
                       required
@@ -326,7 +329,7 @@ export const StudentLayout: React.FC = () => {
                     <Input
                       id="complete-parent-name"
                       type="text"
-                      placeholder="Richard Doe"
+                      placeholder="Parent/guardian full name"
                       value={profileForm.parentName}
                       onChange={(e) => setProfileForm({ ...profileForm, parentName: e.target.value })}
                       required
@@ -339,7 +342,7 @@ export const StudentLayout: React.FC = () => {
                     <Input
                       id="complete-parent-phone"
                       type="tel"
-                      placeholder="+91 98765 43211"
+                      placeholder="Parent/guardian 10-digit mobile number"
                       value={profileForm.parentPhone}
                       onChange={(e) => setProfileForm({ ...profileForm, parentPhone: e.target.value })}
                       required
@@ -379,7 +382,7 @@ export const StudentLayout: React.FC = () => {
                   <Input
                     id="complete-address"
                     type="text"
-                    placeholder="123 Main St, Apartment 4B, City, State, ZIP"
+                    placeholder="House no., street, area, city, PIN code"
                     value={profileForm.address}
                     onChange={(e) => setProfileForm({ ...profileForm, address: e.target.value })}
                     required

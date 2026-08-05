@@ -356,7 +356,7 @@ export const AuditLogsPage: React.FC = () => {
 
         <TablePagination
           pagination={pagination}
-          onPageChange={(p) => { setPage(p); load(p, entity, action, search, dateFrom, dateTo); }}
+          onPageChange={(p) => { setPage(p); }}
         />
       </div>
     </TooltipProvider>

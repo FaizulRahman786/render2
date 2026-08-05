@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Bell, Check, CheckCheck, Loader2, Info, AlertCircle, BookOpen, DollarSign, GraduationCap } from 'lucide-react';
+import { Bell, CheckCheck, Loader2, Info, AlertCircle, BookOpen, DollarSign, GraduationCap } from 'lucide-react';
 import { Button } from '../ui/button';
 import { api } from '../../lib/api';
 import { useRealtimeNotifications, RealtimeNotificationEvent } from '../../hooks/useRealtimeNotifications';
@@ -29,6 +29,8 @@ export const NotificationBell: React.FC = () => {
   const ref = useRef<HTMLDivElement>(null);
   const openRef = useRef(open);
   openRef.current = open;
+  const notificationsRef = useRef<any[]>([]);
+  notificationsRef.current = notifications;
 
   const fetchCount = async () => {
     try {
@@ -53,6 +55,10 @@ export const NotificationBell: React.FC = () => {
 
   // Real-time notification handler
   const handleRealtime = useCallback((n: RealtimeNotificationEvent) => {
+    // Guard against duplicates: the 60s count poll may already have fetched it.
+    const alreadyHas = (id?: string) => id ? notificationsRef.current.some(x => x.id === id) : false;
+    if (n.id && alreadyHas(n.id)) return;
+
     // Prepend to list if panel is open
     if (openRef.current) {
       setNotifications(prev => [n, ...prev]);
@@ -76,15 +82,19 @@ export const NotificationBell: React.FC = () => {
   };
 
   const markRead = async (id: string) => {
-    await api.notifications.markRead(id);
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-    setUnread(prev => Math.max(0, prev - 1));
+    try {
+      await api.notifications.markRead(id);
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+      setUnread(prev => Math.max(0, prev - 1));
+    } catch (err) { console.error('Failed to mark notification read:', err); }
   };
 
   const markAll = async () => {
-    await api.notifications.markAllRead();
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-    setUnread(0);
+    try {
+      await api.notifications.markAllRead();
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      setUnread(0);
+    } catch (err) { console.error('Failed to mark all read:', err); }
   };
 
   // Close on outside click
@@ -108,7 +118,7 @@ export const NotificationBell: React.FC = () => {
 
   return (
     <div className="relative" ref={ref}>
-      <Button variant="ghost" size="icon" className="relative" onClick={handleOpen}>
+      <Button variant="ghost" size="icon" className="relative" onClick={handleOpen} aria-label="Notifications">
         <Bell className="h-5 w-5" />
         {unread > 0 && (
           <span className="absolute top-1 right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white leading-none px-0.5 animate-pulse">
@@ -149,8 +159,12 @@ export const NotificationBell: React.FC = () => {
                 return (
                   <div
                     key={n.id}
+                    role="button"
+                    tabIndex={0}
                     className={`flex gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors ${!n.isRead ? 'bg-blue-50/50' : ''}`}
                     onClick={() => !n.isRead && markRead(n.id)}
+                    onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !n.isRead) { e.preventDefault(); markRead(n.id); } }}
+                    aria-label={n.title}
                   >
                     <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center mt-0.5 ${n.isRead ? 'bg-gray-100' : 'bg-blue-100'}`}>
                       <Icon className={`h-4 w-4 ${n.isRead ? 'text-gray-500' : 'text-blue-600'}`} />

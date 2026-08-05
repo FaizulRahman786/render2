@@ -22,6 +22,16 @@ export function getSupabaseClient(): SupabaseClient {
     //   mock-oauth-token-<provider>  — OAuth mock path (e.g. mock-oauth-token-google)
     const originalGetUser = rawClient.auth.getUser.bind(rawClient.auth);
     rawClient.auth.getUser = async (token?: string) => {
+      // FAIL-CLOSED: if a mock token is ever presented while mock auth is disabled,
+      // refuse it explicitly instead of letting it fall through to real Supabase
+      // (which would reject it anyway, but we must never blur the boundary).
+      if (!config.enableAuthMock && token && token.startsWith('mock-')) {
+        return {
+          data: { user: null },
+          error: { name: 'AuthRetryableFetchError', message: 'Invalid login credentials', status: 400 } as any,
+        };
+      }
+
       if (config.enableAuthMock) {
         if (token && token.startsWith('mock-oauth-token-')) {
           const provider = token.substring('mock-oauth-token-'.length);

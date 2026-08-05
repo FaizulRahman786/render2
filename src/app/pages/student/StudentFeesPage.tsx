@@ -5,6 +5,14 @@ import { Button } from '../../components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Loader2, IndianRupee, Printer, Download } from 'lucide-react';
 import { api } from '../../lib/api';
+import { toast } from 'sonner';
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? '').replace(/[&<>"']/g, (ch) => {
+    const map: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+    return map[ch];
+  });
+}
 
 function printReceipt(fee: any, payments: any[]) {
   const totalPaid = payments.reduce((s, p) => s + Number(p.amount), 0);
@@ -38,13 +46,13 @@ function printReceipt(fee: any, payments: any[]) {
       <div class="header">
         <h1>🎓 Coaching Platform</h1>
         <p>Fee Receipt</p>
-        <span class="badge">Receipt #${fee.id?.slice(-8).toUpperCase()}</span>
+        <span class="badge">Receipt #${escapeHtml(fee.id?.slice(-8).toUpperCase())}</span>
       </div>
       <div class="section">
         <h3>Student Details</h3>
-        <div class="row"><span class="label">Name</span><span class="value">${fee.studentName || '—'}</span></div>
-        <div class="row"><span class="label">Email</span><span class="value">${fee.studentEmail || '—'}</span></div>
-        <div class="row"><span class="label">Course</span><span class="value">${fee.courseName || '—'}</span></div>
+        <div class="row"><span class="label">Name</span><span class="value">${escapeHtml(fee.studentName) || '—'}</span></div>
+        <div class="row"><span class="label">Email</span><span class="value">${escapeHtml(fee.studentEmail) || '—'}</span></div>
+        <div class="row"><span class="label">Course</span><span class="value">${escapeHtml(fee.courseName) || '—'}</span></div>
       </div>
       <div class="section">
         <h3>Fee Details</h3>
@@ -64,8 +72,8 @@ function printReceipt(fee: any, payments: any[]) {
                 <td>${i + 1}</td>
                 <td>${p.paidAt ? new Date(p.paidAt).toLocaleDateString('en-IN') : '—'}</td>
                 <td>₹${Number(p.amount).toLocaleString('en-IN')}</td>
-                <td>${p.paymentMode || '—'}</td>
-                <td>${p.transactionId || p.receiptNumber || '—'}</td>
+                <td>${escapeHtml(p.paymentMode) || '—'}</td>
+                <td>${escapeHtml(p.transactionId || p.receiptNumber) || '—'}</td>
               </tr>`).join('')}
             <tr class="total-row"><td colspan="2">Total Paid</td><td>₹${totalPaid.toLocaleString('en-IN')}</td><td colspan="2"></td></tr>
           </tbody>
@@ -110,9 +118,7 @@ export const StudentFeesPage: React.FC = () => {
       if (r?.success) {
         printReceipt(r.data.fee, r.data.payments);
       } else {
-        // fallback: use local data
-        const feePayments = payments.filter(p => p.feeId === fee.id);
-        printReceipt({ ...fee, studentName: 'Student', studentEmail: '' }, feePayments);
+        toast.error('Could not fetch the receipt. Please try again.');
       }
     } finally {
       setPrintingId(null);

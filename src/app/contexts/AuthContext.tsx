@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '../lib/api';
 import { clearAuthStorage } from '../lib/auth';
@@ -25,16 +25,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const refreshInFlight = useRef<{ promise: Promise<User | null>; resolve: (u: User | null) => void } | null>(null);
+
   const refreshUser = useCallback(async () => {
-    const res = await api.auth.me();
-    if (res.success && res.data) {
-      const nextUser = res.data as User;
+    if (refreshInFlight.current) return refreshInFlight.current.promise;
+    const promise = new Promise<User | null>((resolve) => {
+      refreshInFlight.current = { promise, resolve };
+    });
+    try {
+      const res = await api.auth.me();
+      const nextUser = res.success && res.data ? (res.data as User) : null;
       setUser(nextUser);
       return nextUser;
+    } catch {
+      setUser(null);
+      return null;
+    } finally {
+      refreshInFlight.current = null;
     }
-    setUser(null);
-    return null;
   }, []);
+
+  // Proactive token refresh - refresh 5 minutes before expiry
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(async () => {
+      try {
+        await refreshUser();
+      } catch {
+        // Silently fail - Supabase onAuthStateChange will handle actual expiry
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+    return () => clearInterval(interval);
+  }, [user, refreshUser]);
 
   useEffect(() => {
     let mounted = true;
@@ -78,18 +100,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [refreshUser]);
 
-  const sendEmailOtp = useCallback(async (email: string) => {
-    const { error } = await getSupabaseClient().auth.signInWithOtp({ email });
-    if (error) throw error;
-  }, []);
-
-  const verifyEmailOtp = useCallback(async (email: string, token: string) => {
+  const signInWithPassword = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const { error } = await getSupabaseClient().auth.verifyOtp({
-        email,
-        token,
-        type: 'email',
+      const { error } = await getSupabaseClient().auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
       });
       if (error) throw error;
 
@@ -99,21 +115,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return nextUser;
     } catch (error: any) {
       setUser(null);
-      toast.error(error.message || 'OTP verification failed');
+      toast.error(error.message || 'Sign-in failed');
       throw error;
     } finally {
       setIsLoading(false);
     }
   }, [refreshUser]);
-
-  const signInWithGoogle = useCallback(async () => {
-    const redirectTo = `${window.location.origin}/auth/callback`;
-    const { error } = await getSupabaseClient().auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo },
-    });
-    if (error) throw error;
-  }, []);
 
   const logout = useCallback(async () => {
     try {
@@ -134,13 +141,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user,
       isAuthenticated: !!user,
       isLoading,
-      sendEmailOtp,
-      verifyEmailOtp,
-      signInWithGoogle,
+      signInWithPassword,
       logout,
-      refreshUser: async () => { await refreshUser(); },
+      refreshUser,
     }),
-    [user, isLoading, sendEmailOtp, verifyEmailOtp, signInWithGoogle, logout, refreshUser],
+    [user, isLoading, signInWithPassword, logout, refreshUser],
   );
 
   return (
@@ -164,13 +169,11 @@ export function AuthCallback() {
         if (sessionError) throw sessionError;
         if (!sessionData.session) throw new Error('No session found after callback. Please try signing in again.');
 
-        // Now that the session is confirmed, fetch the application user from the backend.
-        const res = await api.auth.me();
-        if (!res.success || !res.data) throw new Error('Unable to load your account.');
-        const nextUser = res.data as User;
+        // The session is confirmed — load the application user from the backend.
+        const nextUser = await refreshUser();
+        if (!nextUser) throw new Error('No application account is linked to this identity.');
 
         if (!mounted) return;
-        await refreshUser();
         redirectForRole(nextUser);
       } catch (error: any) {
         if (!mounted) return;

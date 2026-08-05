@@ -41,7 +41,7 @@ export const StudentDashboard: React.FC = () => {
       ) : (
         <>
           {/* Fee alert */}
-          {stats?.feeStatus && (
+          {stats?.feeStatus && Number(stats.feeStatus.outstanding) > 0 && (
             <Card className="border-orange-200 bg-orange-50">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
@@ -49,7 +49,7 @@ export const StudentDashboard: React.FC = () => {
                   <div>
                     <p className="font-medium text-orange-800">Fee Due</p>
                     <p className="text-sm text-orange-600">
-                      ₹{Number(stats.feeStatus.finalAmount).toLocaleString('en-IN')} due by{' '}
+                      ₹{Number(stats.feeStatus.outstanding).toLocaleString('en-IN')} due by{' '}
                       {stats.feeStatus.dueDate ? format(new Date(stats.feeStatus.dueDate), 'dd MMM yyyy') : '—'}
                     </p>
                   </div>

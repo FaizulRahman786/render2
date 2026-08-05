@@ -9,28 +9,48 @@ export interface AppError extends Error {
   isOperational?: boolean;
 }
 
+// Postgres error codes → clean HTTP responses. Driver errors are NOT
+// operational (we never raised them), so they must be mapped to friendly
+// messages without leaking constraint names / SQL details.
+const PG_ERROR_MAP: Record<string, { status: number; message: string }> = {
+  '23505': { status: 409, message: 'This record already exists' },
+  '23503': { status: 422, message: 'The referenced record does not exist or is in use' },
+  '23502': { status: 400, message: 'A required field is missing' },
+  '22P02': { status: 400, message: 'Invalid identifier format' },
+  '22003': { status: 400, message: 'Numeric value out of range' },
+};
+
 export function errorHandler(
   err: AppError,
   req: Request,
   res: Response,
   next: NextFunction
 ): void {
-  const statusCode = err.statusCode || 500;
+  console.log('[ERROR HANDLER CALLED]', err?.message);
+  const pgCode = (err as any)?.code;
+  const pgMapping = typeof pgCode === 'string' ? PG_ERROR_MAP[pgCode] : undefined;
+  const statusCode = pgMapping?.status ?? err.statusCode ?? 500;
   const message = err.message || 'Internal server error';
 
   console.error('Error:', {
     statusCode,
     message,
+    pgCode: pgCode ?? undefined,
     stack: err.stack,
     path: req.path,
     method: req.method,
   });
 
-  // Only surface messages we deliberately raised (ApiError). Unexpected throws
-  // (DB drivers, etc.) must not leak internals to clients in production.
-  const safeMessage = err.isOperational || process.env.NODE_ENV === 'development'
-    ? message
-    : 'Internal server error';
+  // Only surface messages we deliberately raised (ApiError) or explicit PG
+  // mappings. Unexpected driver errors never leak internals to clients.
+  let safeMessage: string;
+  if (pgMapping) {
+    safeMessage = pgMapping.message;
+  } else if (err.isOperational || process.env.NODE_ENV === 'development') {
+    safeMessage = message;
+  } else {
+    safeMessage = 'Internal server error';
+  }
 
   res.status(statusCode).json({
     success: false,

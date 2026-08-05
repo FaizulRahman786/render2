@@ -192,29 +192,47 @@ export const StudentTestsPage: React.FC = () => {
           {/* Result Screen */}
           {result ? (
             <div className="flex flex-col items-center justify-center p-10 text-center space-y-6">
-              <div className={`w-24 h-24 rounded-full flex items-center justify-center ${result.passed !== false ? 'bg-green-100' : 'bg-red-100'}`}>
-                <CheckCircle2 className={`h-14 w-14 ${result.passed !== false ? 'text-green-500' : 'text-red-400'}`} />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">
-                  {result.passed === true ? 'Congratulations! You Passed' : result.passed === false ? 'Better Luck Next Time' : 'Test Submitted!'}
-                </h2>
-                <p className="text-muted-foreground mt-1">{activeTest?.title}</p>
-              </div>
-              <div className="grid grid-cols-3 gap-6 w-full max-w-md">
-                <Card className="text-center p-4">
-                  <p className="text-3xl font-bold text-indigo-600">{result.marksObtained}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Marks Obtained</p>
-                </Card>
-                <Card className="text-center p-4">
-                  <p className="text-3xl font-bold text-gray-700">{result.totalMarks}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Total Marks</p>
-                </Card>
-                <Card className={`text-center p-4 ${result.percentage >= 50 ? 'bg-green-50' : 'bg-red-50'}`}>
-                  <p className={`text-3xl font-bold ${result.percentage >= 50 ? 'text-green-600' : 'text-red-500'}`}>{result.percentage}%</p>
-                  <p className="text-xs text-muted-foreground mt-1">Score</p>
-                </Card>
-              </div>
+              {result.awaitingGrading ? (
+                <>
+                  <div className="w-24 h-24 rounded-full bg-amber-100 flex items-center justify-center">
+                    <Clock className="h-14 w-14 text-amber-500" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Test Submitted!</h2>
+                    <p className="text-muted-foreground mt-1">{activeTest?.title}</p>
+                    <p className="text-muted-foreground mt-3">
+                      This test includes answer-type questions. Your result will appear here once a teacher
+                      finishes grading it.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className={`w-24 h-24 rounded-full flex items-center justify-center ${result.passed !== false ? 'bg-green-100' : 'bg-red-100'}`}>
+                    <CheckCircle2 className={`h-14 w-14 ${result.passed !== false ? 'text-green-500' : 'text-red-400'}`} />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">
+                      {result.passed === true ? 'Congratulations! You Passed' : result.passed === false ? 'Better Luck Next Time' : 'Test Submitted!'}
+                    </h2>
+                    <p className="text-muted-foreground mt-1">{activeTest?.title}</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-6 w-full max-w-md">
+                    <Card className="text-center p-4">
+                      <p className="text-3xl font-bold text-indigo-600">{result.marksObtained}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Marks Obtained</p>
+                    </Card>
+                    <Card className="text-center p-4">
+                      <p className="text-3xl font-bold text-gray-700">{result.totalMarks}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Total Marks</p>
+                    </Card>
+                    <Card className={`text-center p-4 ${result.percentage >= 50 ? 'bg-green-50' : 'bg-red-50'}`}>
+                      <p className={`text-3xl font-bold ${result.percentage >= 50 ? 'text-green-600' : 'text-red-500'}`}>{result.percentage}%</p>
+                      <p className="text-xs text-muted-foreground mt-1">Score</p>
+                    </Card>
+                  </div>
+                </>
+              )}
               <Button onClick={() => setTestOpen(false)} className="bg-gradient-to-r from-indigo-600 to-purple-600">
                 Back to Tests
               </Button>

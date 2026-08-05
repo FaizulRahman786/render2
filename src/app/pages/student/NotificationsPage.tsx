@@ -20,6 +20,10 @@ const TYPE_META: Record<string, { icon: React.ReactNode; color: string; label: s
 
 const getMeta = (type: string) => TYPE_META[type] ?? TYPE_META['general'];
 
+// Only allow http(s) links from the server — reject javascript: etc.
+const safeLink = (url?: string): string | undefined =>
+  url && /^https?:\/\//i.test(url) ? url : undefined;
+
 const PAGE_SIZE = 20;
 
 export const NotificationsPage: React.FC = () => {
@@ -30,9 +34,11 @@ export const NotificationsPage: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState('all');
   const [markingAll, setMarkingAll] = useState(false);
   const cursorRef = useRef<string | null>(null);
+  const requestIdRef = useRef(0);
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
   const fetchPage = useCallback(async (reset: boolean, type: string) => {
+    const requestId = ++requestIdRef.current;
     if (reset) { setLoading(true); cursorRef.current = null; }
     else setLoadingMore(true);
 
@@ -42,28 +48,34 @@ export const NotificationsPage: React.FC = () => {
       if (!reset && cursorRef.current) params.set('before', cursorRef.current);
 
       const r = await api.notifications.getAll(Object.fromEntries(params));
-      if (r.success) {
+      if (r.success && requestId === requestIdRef.current) {
         const data: any[] = r.data;
         setNotifications(prev => reset ? data : [...prev, ...data]);
         setHasMore(data.length === PAGE_SIZE);
         if (data.length > 0) cursorRef.current = data[data.length - 1].createdAt;
       }
     } catch (e) { console.error(e); }
-    finally { setLoading(false); setLoadingMore(false); }
+    finally {
+      if (requestId === requestIdRef.current) { setLoading(false); setLoadingMore(false); }
+    }
   }, []);
 
   useEffect(() => { fetchPage(true, typeFilter); }, [typeFilter, fetchPage]);
 
   const markRead = async (id: string) => {
-    await api.notifications.markRead(id);
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+    try {
+      await api.notifications.markRead(id);
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+    } catch (err) { console.error('Failed to mark notification read:', err); }
   };
 
   const markAllRead = async () => {
     setMarkingAll(true);
-    await api.notifications.markAllRead();
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-    setMarkingAll(false);
+    try {
+      await api.notifications.markAllRead();
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    } catch (err) { console.error('Failed to mark all read:', err); }
+    finally { setMarkingAll(false); }
   };
 
   const typeOptions = [
@@ -122,8 +134,12 @@ export const NotificationsPage: React.FC = () => {
                 return (
                   <div
                     key={n.id}
+                    role="button"
+                    tabIndex={0}
                     className={`flex gap-4 px-5 py-4 transition-colors hover:bg-gray-50/50 cursor-pointer ${!n.isRead ? 'bg-indigo-50/30' : ''}`}
                     onClick={() => { if (!n.isRead) markRead(n.id); }}
+                    onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !n.isRead) { e.preventDefault(); markRead(n.id); } }}
+                    aria-label={n.title}
                   >
                     {/* Icon */}
                     <div className={`mt-0.5 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${meta.color}`}>
@@ -148,8 +164,8 @@ export const NotificationsPage: React.FC = () => {
                         <Badge variant="outline" className={`text-xs px-1.5 py-0 border-0 ${meta.color}`}>
                           {meta.label}
                         </Badge>
-                        {n.link && (
-                          <a href={n.link} className="text-xs text-indigo-600 hover:underline" onClick={e => e.stopPropagation()}>
+                        {safeLink(n.link) && (
+                          <a href={safeLink(n.link)} className="text-xs text-indigo-600 hover:underline" onClick={e => e.stopPropagation()}>
                             View →
                           </a>
                         )}

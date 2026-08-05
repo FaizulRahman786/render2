@@ -2,6 +2,9 @@ import { Router } from 'express';
 import type { Router as ExpressRouter } from 'express';
 import authRoutes from './auth.js';
 import adminRoutes from './admin.js';
+import cmsRoutes from './cms.js';
+import siteContentRoutes from './siteContent.js';
+import publicRoutes from './public.js';
 import teacherRoutes from './teacher.js';
 import studentRoutes from './student.js';
 import uploadRoutes from './upload.js';
@@ -45,7 +48,9 @@ router.get('/status', (req, res) => {
 });
 
 // Offline Mock Fallback Middleware for student, teacher, and admin routes
+// ONLY used when database is NOT connected and ENABLE_AUTH_MOCK=true
 const offlineMockMiddleware = (req: any, res: any, next: any) => {
+  console.log('[OFFLINE MOCK] Path:', req.path, 'BaseURL:', req.baseUrl, 'DB Connected:', isDbConnected);
   if (isDbConnected) {
     next();
     return;
@@ -62,8 +67,6 @@ const offlineMockMiddleware = (req: any, res: any, next: any) => {
   const path = req.path;
   const method = req.method;
 
-  console.log(`[Offline API Mock] Intercepted ${method} ${req.baseUrl}${path}`);
-
   // Student Mock responses
   if (req.baseUrl.startsWith('/api/student')) {
     if (path === '/dashboard') {
@@ -73,39 +76,42 @@ const offlineMockMiddleware = (req: any, res: any, next: any) => {
           recentResults: [],
           upcomingClasses: [],
           recentMaterials: [],
-          myFees: { finalAmount: "5000", dueDate: new Date(Date.now() + 86400000 * 7).toISOString() },
-          upcomingAssignments: [],
-          openDoubts: 0,
-          availableTests: 0,
-          attendanceSummary: { total: 10, present: 9, late: 1 }
+          feeStatus: { finalAmount: "5000", paid: "0", outstanding: 5000, dueDate: new Date(Date.now() + 86400000 * 7).toISOString() },
+          pendingAssignments: [],
+          openDoubtsCount: 0,
+          availableTestsCount: 0,
+          attendancePct: null,
+          attendanceSessions: 0,
+          myBatchCount: 0,
         }
       });
     }
     if (path === '/profile') {
       const email = req.user?.email || 'student@demo.com';
-      // For student@demo.com, we want to start with an incomplete profile to test the onboarding/complete-profile flow.
       const isTestCompleteFlow = email === 'student@demo.com';
 
       return res.json({
         success: true,
         data: {
           id: req.user?.id || 'mock-user-id-student',
-          name: req.user?.name || 'Demo Student',
+          name: req.user?.name || 'Student User',
           email,
           phone: isTestCompleteFlow ? '' : '9876543210',
           profile: {
             id: 'mock-student-profile-uuid',
             userId: req.user?.id || 'mock-user-id-student',
-            parentName: isTestCompleteFlow ? '' : 'Jane Doe',
+            parentName: isTestCompleteFlow ? '' : 'Parent Name',
             parentPhone: isTestCompleteFlow ? '' : '9876543211',
-            address: isTestCompleteFlow ? '' : '123 Mock Street',
+            address: isTestCompleteFlow ? '' : 'Mock Address',
             class: isTestCompleteFlow ? '' : 'Grade 10',
             board: isTestCompleteFlow ? '' : 'CBSE',
           }
         }
       });
     }
-    // Return empty success array for lists/gets, success true for posts
+    if (path === '/notifications') {
+      return res.json({ success: true, data: [] });
+    }
     if (method === 'GET') {
       return res.json({ success: true, data: [] });
     }
@@ -163,8 +169,14 @@ const offlineMockMiddleware = (req: any, res: any, next: any) => {
         }
       });
     }
+    if (path === '/site/notifications' && method === 'GET') {
+      return res.json({ success: true, data: [] });
+    }
     if (method === 'GET') {
       return res.json({ success: true, data: [] });
+    }
+    if (path === '/site/notifications' && method === 'POST') {
+      return res.json({ success: true, message: 'Notification sent in offline mock mode' });
     }
     return res.json({ success: true, message: 'Action succeeded in offline mock mode' });
   }
@@ -173,10 +185,17 @@ const offlineMockMiddleware = (req: any, res: any, next: any) => {
 };
 
 router.use('/auth', authRoutes);
-router.use('/admin', offlineMockMiddleware, adminRoutes);
+router.use('/admin', offlineMockMiddleware, adminRoutes, cmsRoutes);
+// Public-site CMS (admissions, fees, achievements, results, gallery, reviews,
+// blog, faqs, navigation, homepage sections, custom pages). Requires admin.
+router.use('/admin/site', offlineMockMiddleware, siteContentRoutes);
 router.use('/teacher', offlineMockMiddleware, teacherRoutes);
 router.use('/student', offlineMockMiddleware, studentRoutes);
 router.use('/upload', uploadRoutes);
 router.use('/notifications', notificationRoutes);
+// Public website API — read-only for visitors except the validated, rate-limited
+// contact form. Serves real DB content (courses, faculty, published notices and
+// events, CMS live sections). Never exposes drafts or private audience content.
+router.use('/public', publicRoutes);
 
 export default router;

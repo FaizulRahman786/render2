@@ -6,6 +6,7 @@ import { Textarea } from '../../components/ui/textarea';
 import { Badge } from '../../components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Loader2, Plus, MessageSquare, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { toast } from 'sonner';
@@ -13,10 +14,11 @@ import { useRealtimeNotifications, RealtimeNotificationEvent } from '../../hooks
 
 export const StudentDoubtsPage: React.FC = () => {
   const [doubts, setDoubts] = useState<any[]>([]);
+  const [subjects, setSubjects] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ subject: '', question: '' });
+  const [form, setForm] = useState({ subjectId: '', question: '' });
   const [recentlyAnswered, setRecentlyAnswered] = useState<Set<string>>(new Set());
 
   const load = useCallback(() => {
@@ -28,6 +30,20 @@ export const StudentDoubtsPage: React.FC = () => {
   }, []);
 
   useEffect(load, [load]);
+
+  useEffect(() => {
+    api.student.getCourses()
+      .then((r) => {
+        if (r.success) {
+          const all: { id: string; name: string }[] = [];
+          for (const c of r.data) {
+            for (const s of c.subjects ?? []) all.push({ id: s.id, name: s.name });
+          }
+          setSubjects(all);
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   // Listen for real-time doubt replies via WebSocket
   const handleRealtime = useCallback((n: RealtimeNotificationEvent) => {
@@ -61,7 +77,7 @@ export const StudentDoubtsPage: React.FC = () => {
       await api.student.postDoubt(form);
       toast.success('Doubt posted! Your teacher will reply soon.');
       setAddOpen(false);
-      setForm({ subject: '', question: '' });
+      setForm({ subjectId: '', question: '' });
       load();
     } catch (err: any) { toast.error(err.message); } finally { setSaving(false); }
   };
@@ -85,13 +101,17 @@ export const StudentDoubtsPage: React.FC = () => {
               <DialogHeader><DialogTitle>Post a Doubt</DialogTitle></DialogHeader>
               <form onSubmit={handlePost} className="space-y-4 mt-4">
                 <div>
-                  <Label>Subject *</Label>
-                  <Input
-                    value={form.subject}
-                    onChange={(e) => setForm({ ...form, subject: e.target.value })}
-                    placeholder="e.g. Mathematics"
-                    required
-                  />
+                  <Label>Subject</Label>
+                  <Select value={form.subjectId} onValueChange={(v) => setForm({ ...form, subjectId: v })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select subject (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {subjects.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label>Your Question *</Label>
@@ -127,7 +147,7 @@ export const StudentDoubtsPage: React.FC = () => {
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <MessageSquare className="h-4 w-4 text-blue-600" />
-                      <span className="font-medium">{d.subject}</span>
+                      <span className="font-medium">{d.subjectName || 'General'}</span>
                       {d.status === 'open' ? (
                         <Badge variant="secondary">Pending Reply</Badge>
                       ) : (

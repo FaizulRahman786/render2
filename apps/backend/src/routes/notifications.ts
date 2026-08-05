@@ -5,6 +5,9 @@ import { db, schema } from '../db/index.js';
 import { authenticate } from '../middleware/auth.js';
 import { asyncHandler, ApiError } from '../middleware/error.js';
 import { emitToUsers, registerSseClient } from '../ws/wsManager.js';
+import { assertRecipientsScopedToTeacher } from '../services/authorization.js';
+import { validate } from '../middleware/validation.js';
+import { sendNotificationSchema } from '../validation/schemas.js';
 
 const router: ExpressRouter = Router();
 
@@ -84,13 +87,19 @@ router.patch('/:id/read', asyncHandler(async (req, res) => {
   res.json({ success: true, message: 'Marked as read' });
 }));
 
-router.post('/send', asyncHandler(async (req, res) => {
+router.post('/send', validate(sendNotificationSchema), asyncHandler(async (req, res) => {
   if (req.user!.role !== 'admin' && req.user!.role !== 'teacher') {
     throw new ApiError(403, 'Not allowed');
   }
   const { receiverIds, title, message, type = 'general', link } = req.body;
   if (!receiverIds?.length || !title || !message) {
     throw new ApiError(400, 'receiverIds, title, message required');
+  }
+
+  // D4: teachers may only notify students enrolled in one of their batches.
+  // Admins retain institute-wide send (broadcast handled separately).
+  if (req.user!.role === 'teacher') {
+    await assertRecipientsScopedToTeacher(req.user!.id, receiverIds);
   }
 
   const inserted = await db.insert(schema.notifications).values(

@@ -76,9 +76,9 @@ export const AdminLiveClassesPage: React.FC = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { label: 'Total', value: total, color: 'text-gray-900', bg: 'bg-gray-50', icon: <Video className="h-5 w-5 text-gray-500" /> },
-            { label: 'Scheduled', value: scheduledCount, color: 'text-blue-700', bg: 'bg-blue-50', icon: <Clock className="h-5 w-5 text-blue-600" /> },
-            { label: 'Live Now', value: liveCount, color: 'text-red-700', bg: 'bg-red-50', icon: <Radio className="h-5 w-5 text-red-600" /> },
-            { label: 'Completed', value: completedCount, color: 'text-green-700', bg: 'bg-green-50', icon: <CheckCircle2 className="h-5 w-5 text-green-600" /> },
+            { label: 'Scheduled (this page)', value: scheduledCount, color: 'text-blue-700', bg: 'bg-blue-50', icon: <Clock className="h-5 w-5 text-blue-600" /> },
+            { label: 'Live Now (this page)', value: liveCount, color: 'text-red-700', bg: 'bg-red-50', icon: <Radio className="h-5 w-5 text-red-600" /> },
+            { label: 'Completed (this page)', value: completedCount, color: 'text-green-700', bg: 'bg-green-50', icon: <CheckCircle2 className="h-5 w-5 text-green-600" /> },
           ].map((s) => (
             <Card key={s.label}>
               <CardContent className={`p-5 ${s.bg} rounded-lg`}>
@@ -189,8 +189,8 @@ export const AdminLiveClassesPage: React.FC = () => {
                           </TableCell>
                           <TableCell>
                             {c.meetingLink ? (
-                              <a href={c.meetingLink} target="_blank" rel="noopener noreferrer">
-                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
+                              <a href={c.meetingLink} target="_blank" rel="noopener noreferrer" aria-label={`Open meeting link for ${c.title}`}>
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" tabIndex={-1}>
                                   <ExternalLink className="h-3.5 w-3.5 text-blue-600" />
                                 </Button>
                               </a>

@@ -29,3 +29,8 @@ Thumbs.db
 
 # Vercel
 .vercel/
+
+# Runtime uploads (local fallback storage; Cloudinary is primary in production)
+uploads/
+
+.vercel

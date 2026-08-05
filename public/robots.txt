@@ -1,2 +1,11 @@
 User-agent: *
-Disallow: /
+Allow: /
+Disallow: /api/
+Disallow: /login
+Disallow: /auth/
+Disallow: /preview
+Disallow: /admin
+Disallow: /teacher
+Disallow: /student
+
+Sitemap: https://your-domain.example/sitemap.xml

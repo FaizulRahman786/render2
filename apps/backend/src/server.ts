@@ -1,32 +1,119 @@
-import express from 'express';
+import express, { type Request, type Response, type NextFunction } from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { config, validateEnv } from './config/env.js';
 import { connectDatabase, disconnectDatabase } from './config/database.js';
 import routes from './routes/index.js';
-import { errorHandler, notFoundHandler } from './middleware/error.js';
+import { errorHandler, notFoundHandler, asyncHandler, ApiError } from './middleware/error.js';
+import { authenticate } from './middleware/auth.js';
+import { assertTeacherCanAccessStudent } from './services/authorization.js';
+import { logger } from './lib/logger.js';
+import { initSentry, sentryMiddleware, sentryErrorMiddleware } from './lib/sentry.js';
+import { stopHeartbeat } from './ws/wsManager.js';
 import type { Express } from 'express';
 
+declare global {
+  namespace Express {
+    interface Request {
+      id?: string;
+    }
+  }
+}
+
 validateEnv();
+
+initSentry();
 
 const app: Express = express();
 
 // Trust proxy (needed for Render / Replit + rate limiting to correctly identify clients)
 app.set('trust proxy', 1);
 
+// Request logging middleware
+app.use((req, _res, next) => {
+  const start = Date.now();
+  req.id = crypto.randomUUID();
+  logger.info({ reqId: req.id, method: req.method, url: req.url, ip: req.ip }, 'Incoming request');
+  next();
+});
+
+// Response logging
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    logger.info({ reqId: req.id, method: req.method, url: req.url, status: res.statusCode, durationMs: duration }, 'Request completed');
+  });
+  next();
+});
+
+// Sentry request handler (must be before other middleware)
+app.use(sentryMiddleware);
+
 // Security headers
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      fontSrc: ["'self'", 'https:'],
+      connectSrc: ["'self'"],
+      frameAncestors: ["'self'"],
+    },
+  },
+  frameguard: false,
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  crossOriginEmbedderPolicy: false,
+}));
+
+// Rate limiting
+app.use('/api/admin', rateLimit({
+  windowMs: 60_000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many admin requests. Please try again later.' },
+}));
+app.use('/api/auth', rateLimit({
+  windowMs: 15 * 60_000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many authentication attempts. Please try again later.' },
+}));
+app.use('/api/auth/refresh', rateLimit({
+  windowMs: 60 * 60_000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many token refresh attempts. Please try again later.' },
+}));
+app.use('/api/upload', rateLimit({
+  windowMs: 60_000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many upload attempts. Please try again later.' },
 }));
 
 const allowedOrigins = (config.corsOrigin || '').split(',').map((origin) => origin.trim()).filter(Boolean);
 app.use(cors({
   origin: (origin, callback) => {
-    console.log('[CORS Debug] Origin:', origin, 'nodeEnv:', config.nodeEnv, 'allowedOrigins:', allowedOrigins);
-    // In production, always require an Origin header to prevent CSRF from non-browser clients
+    if (config.nodeEnv !== 'production') {
+      logger.debug({ origin, nodeEnv: config.nodeEnv, allowedOrigins }, 'CORS Debug');
+    }
     if (!origin) {
       if (config.nodeEnv !== 'production') {
         callback(null, true);
@@ -37,7 +124,7 @@ app.use(cors({
     }
 
     const isDevelopmentOrigin = config.nodeEnv !== 'production'
-      && (origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('app.github.dev'));
+      && ['http://localhost:5000', 'http://127.0.0.1:5000', 'https://app.github.dev'].includes(origin);
 
     const allowsWildcard = config.nodeEnv !== 'production' && allowedOrigins.includes('*');
     if (allowsWildcard || allowedOrigins.includes(origin) || isDevelopmentOrigin) {
@@ -45,7 +132,9 @@ app.use(cors({
       return;
     }
 
-    console.warn('[CORS Reject] Rejected origin:', origin);
+    if (config.nodeEnv !== 'production') {
+      logger.warn({ origin }, 'CORS Reject');
+    }
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
@@ -56,21 +145,70 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Rate limiting
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 500, standardHeaders: true, legacyHeaders: false });
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
-app.use('/api', limiter);
-app.use('/api/auth', authLimiter);
+// Test route to verify Express is working
+app.get('/test', (_req, res) => {
+  logger.debug('Test route hit');
+  try {
+    res.json({ success: true, message: 'Test route works' });
+  } catch (err) {
+    logger.error({ err }, 'Test route error');
+    throw err;
+  }
+});
+
+// Global error logging
+app.use((err: Error, req: Request, _res: Response, next: NextFunction) => {
+  logger.error({ err, reqId: req.id, method: req.method, url: req.url }, 'Global error');
+  next(err);
+});
+
+app.use('/api', routes);
 
 if (config.nodeEnv === 'development') {
   app.use((req, _res, next) => {
-    console.log(`${req.method} ${req.path}`);
+    logger.debug({ method: req.method, path: req.path }, 'Request');
     next();
   });
 }
 
-// Serve uploaded files with security headers to prevent XSS via uploaded HTML/JS files
+// ── Private uploads (Phase L) ───────────────────────────────────────────────
+// Files under uploads/private/ are NEVER served by express.static. They are
+// only reachable through this authorized endpoint, which checks ownership:
+// - students: only their own files (404 otherwise — no enumeration)
+// - teachers: only students they share a batch with (404 otherwise)
+// - admins: any file
+app.get('/api/uploads/private/student/:userId/:file', authenticate, asyncHandler(async (req, res) => {
+  const owner = String(req.params.userId);
+  const fileName = String(req.params.file);
+
+  if (req.user!.role === 'student') {
+    if (req.user!.id !== owner) throw new ApiError(404, 'File not found');
+  } else if (req.user!.role === 'teacher') {
+    await assertTeacherCanAccessStudent(req.user!.id, owner);
+  }
+
+  const base = path.join(process.cwd(), 'uploads', 'private', 'student');
+  const filePath = path.join(base, owner, fileName);
+  // Path containment — reject any traversal outside the student's own folder.
+  if (!filePath.startsWith(path.join(base, owner) + path.sep)) {
+    throw new ApiError(400, 'Invalid file path');
+  }
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    throw new ApiError(404, 'File not found');
+  }
+
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Disposition', 'attachment');
+  res.sendFile(filePath);
+}));
+
+// Serve uploaded files with security headers to prevent XSS via uploaded HTML/JS files.
+// The /private/ prefix is reserved for the authorized endpoint above — never static.
 app.use('/api/uploads', (req, res, next) => {
+  if (req.path.startsWith('/private/')) {
+    res.status(403).json({ success: false, error: 'Private files are not served statically' });
+    return;
+  }
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Content-Disposition', 'attachment');
   next();
@@ -82,6 +220,9 @@ app.get('/', (_req, res) => {
   res.json({ message: 'Coaching Platform API', version: '1.0.0' });
 });
 
+// Sentry error handler (must be before custom error handler)
+app.use(sentryErrorMiddleware);
+
 app.use(notFoundHandler);
 app.use(errorHandler);
 
@@ -89,18 +230,19 @@ async function startServer() {
   try {
     await connectDatabase();
     const server = app.listen(config.port, () => {
-      console.log(`🚀 API Server running on port ${config.port}`);
-      console.log(`📡 SSE notifications available at /api/notifications/stream`);
+      logger.info({ port: config.port }, 'API Server started');
+      logger.info('SSE notifications available at /api/notifications/stream');
     });
 
     // Drain in-flight requests and close the DB pool on platform restart/deploy.
     const shutdown = (signal: string) => {
-      console.log(`${signal} received — shutting down gracefully`);
+      logger.info({ signal }, 'Shutting down gracefully');
+      stopHeartbeat();
       server.close(async () => {
         try {
           await disconnectDatabase();
         } catch (err) {
-          console.error('Error during shutdown:', err);
+          logger.error({ err }, 'Error during shutdown');
         } finally {
           process.exit(0);
         }
@@ -111,12 +253,12 @@ async function startServer() {
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('SIGINT', () => shutdown('SIGINT'));
   } catch (error) {
-    console.error('Failed to start server:', error);
+    logger.fatal({ err: error }, 'Failed to start server');
     process.exit(1);
   }
 }
 
-process.on('unhandledRejection', (reason) => console.error('Unhandled Rejection:', reason));
+process.on('unhandledRejection', (reason) => logger.fatal({ reason }, 'Unhandled Rejection'));
 
 startServer();
 

@@ -33,7 +33,8 @@ export const ResultsPage: React.FC = () => {
 
   const avg = results.length ? Math.round(results.reduce((s, r) => s + (Number(r.marksObtained) / Number(r.totalMarks)) * 100, 0) / results.length) : 0;
   const best = results.length ? Math.max(...results.map(r => Math.round((Number(r.marksObtained) / Number(r.totalMarks)) * 100))) : 0;
-  const passes = results.filter(r => (Number(r.marksObtained) / Number(r.totalMarks)) * 100 >= 60).length;
+  const isPass = (r: any) => r.passingMarks != null ? (Number(r.marksObtained) / Number(r.totalMarks)) * 100 >= Number(r.passingMarks) : (Number(r.marksObtained) / Number(r.totalMarks)) * 100 >= 60;
+  const passes = results.filter(r => r.status !== 'pending' && isPass(r)).length;
 
   return (
     <div className="space-y-6">
@@ -73,24 +74,33 @@ export const ResultsPage: React.FC = () => {
               {results.map((r) => {
                 const pct = Math.round((Number(r.marksObtained) / Number(r.totalMarks)) * 100);
                 const grade = pct >= 90 ? 'A+' : pct >= 80 ? 'A' : pct >= 70 ? 'B' : pct >= 60 ? 'C' : 'D';
+                const passed = isPass(r);
                 return (
                   <TableRow key={r.id}>
                     <TableCell className="font-medium">{r.testTitle || 'Test'}</TableCell>
-                    <TableCell>{r.marksObtained}/{r.totalMarks}</TableCell>
+                    <TableCell>{r.status === 'pending' ? '—' : `${r.marksObtained}/${r.totalMarks}`}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="w-20 bg-gray-100 rounded-full h-2">
-                          <div className={`h-2 rounded-full ${pct >= 60 ? 'bg-blue-600' : 'bg-red-400'}`} style={{ width: pct + '%' }} />
+                      {r.status === 'pending' ? (
+                        <Badge variant="secondary">Awaiting evaluation</Badge>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <div className="w-20 bg-gray-100 rounded-full h-2">
+                            <div className={`h-2 rounded-full ${passed ? 'bg-blue-600' : 'bg-red-400'}`} style={{ width: pct + '%' }} />
+                          </div>
+                          <span className="text-sm">{pct}%</span>
                         </div>
-                        <span className="text-sm">{pct}%</span>
-                      </div>
+                      )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={pct >= 60 ? 'default' : 'secondary'} className={pct >= 90 ? 'bg-green-600' : ''}>
-                        {grade}
-                      </Badge>
+                      {r.status === 'pending' ? (
+                        <Badge variant="secondary">—</Badge>
+                      ) : (
+                        <Badge variant={passed ? 'default' : 'secondary'} className={pct >= 90 ? 'bg-green-600' : ''}>
+                          {grade}
+                        </Badge>
+                      )}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—'}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{r.submittedAt ? new Date(r.submittedAt).toLocaleDateString() : '—'}</TableCell>
                   </TableRow>
                 );
               })}

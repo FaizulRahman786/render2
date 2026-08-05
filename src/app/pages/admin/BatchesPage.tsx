@@ -224,7 +224,7 @@ export const BatchesPage: React.FC = () => {
                       <Button size="sm" variant="outline" onClick={() => openMembers(b)}>
                         <Users className="h-4 w-4 mr-1" /> Manage Members
                       </Button>
-                      <Button variant="ghost" size="icon" className="text-red-500 h-8 w-8" onClick={() => handleDelete(b.id, b.name)}>
+                      <Button variant="ghost" size="icon" className="text-red-500 h-8 w-8" onClick={() => handleDelete(b.id, b.name)} aria-label={`Delete batch ${b.name}`}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>

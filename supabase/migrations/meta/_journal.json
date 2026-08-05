@@ -15,6 +15,13 @@
       "when": 1784117268695,
       "tag": "0001_robust_thunderbird",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785946108562,
+      "tag": "0002_goofy_moondragon",
+      "breakpoints": true
     }
   ]
 }

@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { Plus, Trash2, Loader2, RefreshCw, Video, ExternalLink } from 'lucide-react';
+import { Plus, Trash2, Loader2, RefreshCw, ExternalLink } from 'lucide-react';
 import { api } from '../../lib/api';
 import { toast } from 'sonner';
 
@@ -110,9 +110,9 @@ export const LiveClassesPage: React.FC = () => {
                   <TableCell className="text-sm">{c.scheduledDate ? new Date(c.scheduledDate).toLocaleString() : '—'}</TableCell>
                   <TableCell>{c.duration ? c.duration + ' min' : '—'}</TableCell>
                   <TableCell><Badge variant={c.status === 'live' ? 'destructive' : c.status === 'completed' ? 'secondary' : 'default'}>{c.status}</Badge></TableCell>
-                  <TableCell>{c.meetingLink && <a href={c.meetingLink} target="_blank" rel="noopener noreferrer" className="text-blue-600"><ExternalLink className="h-4 w-4" /></a>}</TableCell>
+<TableCell>{c.meetingLink && <a href={c.meetingLink} target="_blank" rel="noopener noreferrer" className="text-blue-600" aria-label={`Open meeting link for ${c.title}`}><ExternalLink className="h-4 w-4" /></a>}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" className="text-red-600" onClick={() => handleDelete(c.id)}><Trash2 className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" className="text-red-600" onClick={() => handleDelete(c.id)} aria-label={`Cancel live class ${c.title}`}><Trash2 className="h-4 w-4" /></Button>
                   </TableCell>
                 </TableRow>
               ))}

@@ -1,5 +1,14 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
+// FAIL-CLOSED GUARD: mock auth must NEVER ship in a production build.
+// If a production bundle is built with mock mode enabled, fail loudly at
+// module scope instead of silently proxying auth to fake credentials.
+if (import.meta.env.PROD && import.meta.env.VITE_ENABLE_AUTH_MOCK === 'true') {
+  throw new Error(
+    'VITE_ENABLE_AUTH_MOCK must not be "true" in a production build. Mock auth bypasses all real security. Rebuild with VITE_ENABLE_AUTH_MOCK unset or "false".'
+  );
+}
+
 let client: SupabaseClient | null = null;
 
 function getSupabaseConfig() {
@@ -174,7 +183,7 @@ export function getSupabaseClient(): SupabaseClient {
                 if (authProp === 'signInWithOtp') {
                   return async (...args: any[]) => {
                     console.warn('[Proxy Auth] Routing to mock signInWithOtp...');
-                    const mockMethod = Reflect.get(mockSupabaseClient.auth, authProp);
+                    const mockMethod = Reflect.get(mockSupabaseClient.auth, authProp) as (...a: any[]) => Promise<any>;
                     return await mockMethod.apply(mockSupabaseClient.auth, args);
                   };
                 }
@@ -183,7 +192,7 @@ export function getSupabaseClient(): SupabaseClient {
                 if (authProp === 'verifyOtp') {
                   return async (...args: any[]) => {
                     console.warn('[Proxy Auth] Routing to mock verifyOtp...');
-                    const mockMethod = Reflect.get(mockSupabaseClient.auth, authProp);
+                    const mockMethod = Reflect.get(mockSupabaseClient.auth, authProp) as (...a: any[]) => Promise<any>;
                     return await mockMethod.apply(mockSupabaseClient.auth, args);
                   };
                 }
@@ -192,7 +201,7 @@ export function getSupabaseClient(): SupabaseClient {
                 if (authProp === 'signInWithOAuth') {
                   return async (...args: any[]) => {
                     console.warn('[Proxy Auth] Routing to mock signInWithOAuth...');
-                    const mockMethod = Reflect.get(mockSupabaseClient.auth, authProp);
+                    const mockMethod = Reflect.get(mockSupabaseClient.auth, authProp) as (...a: any[]) => Promise<any>;
                     return await mockMethod.apply(mockSupabaseClient.auth, args);
                   };
                 }

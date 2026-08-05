@@ -46,9 +46,9 @@ function resolveSSL(url: string): postgres.Options<Record<string, postgres.Postg
 const client = postgres(process.env.DATABASE_URL, {
   prepare: false,
   ssl: resolveSSL(process.env.DATABASE_URL),
-  max: process.env.NODE_ENV === 'production' ? 10 : 3,
-  idle_timeout: 20,
-  connect_timeout: 10,
+  max: 10,
+  idle_timeout: 60,
+  connect_timeout: 30,
 });
 
 export const db = drizzle(client, { schema });

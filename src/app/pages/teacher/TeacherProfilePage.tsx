@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { useAuth } from '../../contexts/AuthContext';
 
 export const TeacherProfilePage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [nameForm, setNameForm] = useState({ name: user?.name || '', phone: '' });
@@ -27,6 +27,7 @@ export const TeacherProfilePage: React.FC = () => {
     setSaving(true);
     try {
       await api.teacher.updateProfile({ name: nameForm.name, phone: nameForm.phone });
+      await refreshUser();
       toast.success('Profile updated successfully');
     } catch (err: any) { toast.error(err.message); } finally { setSaving(false); }
   };

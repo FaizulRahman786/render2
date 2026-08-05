@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { NotificationBell } from './NotificationBell';
+import { useSeo } from '../public/useSeo';
 
 const navigation = [
   { name: 'Dashboard', href: '/teacher', icon: LayoutDashboard },
@@ -49,6 +50,8 @@ export const TeacherLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useSeo({ title: 'Teacher Panel', robots: 'noindex,nofollow' });
 
   const handleLogout = () => {
     logout();
@@ -140,7 +143,7 @@ export const TeacherLayout: React.FC = () => {
                   <Button variant="ghost" className="flex items-center space-x-2">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback className="bg-gradient-to-br from-green-600 to-teal-600 text-white">
-                        {user?.name.charAt(0).toUpperCase()}
+                        {(user?.name?.[0] ?? '?').toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="hidden md:block text-left">

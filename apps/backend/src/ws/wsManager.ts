@@ -15,6 +15,9 @@ const clients = new Map<string, Set<SseClient>>();
 // Maximum concurrent SSE connections per user (handles multiple tabs)
 const MAX_CONNECTIONS_PER_USER = 5;
 
+// Heartbeat interval to detect dead connections
+const HEARTBEAT_INTERVAL_MS = 30_000;
+
 function addClient(userId: string, role: string, res: Response): SseClient {
   const client: SseClient = { res, userId, role };
   if (!clients.has(userId)) clients.set(userId, new Set());
@@ -42,8 +45,34 @@ function send(client: SseClient, event: object) {
   } catch {}
 }
 
+// Heartbeat to keep connections alive and detect stale ones
+let heartbeatInterval: NodeJS.Timeout | null = null;
+function startHeartbeat() {
+  if (heartbeatInterval) return;
+  heartbeatInterval = setInterval(() => {
+    clients.forEach((userClients, userId) => {
+      userClients.forEach((client) => {
+        try {
+          client.res.write(': ping\n\n');
+        } catch {
+          removeClient(userId, client);
+        }
+      });
+    });
+  }, HEARTBEAT_INTERVAL_MS);
+  heartbeatInterval.unref();
+}
+
+function stopHeartbeat() {
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+  }
+}
+
 // Register an SSE connection. Returns a cleanup function.
 export function registerSseClient(userId: string, role: string, res: Response): () => void {
+  startHeartbeat();
   const client = addClient(userId, role, res);
   // Send a connected acknowledgement
   send(client, { type: 'connected', userId, role });
@@ -87,3 +116,5 @@ export function getSseStats() {
   clients.forEach((s) => { total += s.size; });
   return { connectedUsers: clients.size, totalConnections: total };
 }
+
+export { stopHeartbeat };

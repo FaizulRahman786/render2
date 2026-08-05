@@ -7,8 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Label } from '../../components/ui/label';
-import { Plus, Search, Trash2, Loader2, RefreshCw, X } from 'lucide-react';
+import { Plus, Search, Trash2, Loader2, RefreshCw, X, Pencil, RotateCcw, Download } from 'lucide-react';
 import { api } from '../../lib/api';
+import { downloadCsv } from '../../lib/csv';
 import { TablePagination } from '../../components/shared/TablePagination';
 import { toast } from 'sonner';
 
@@ -24,7 +25,11 @@ export const TeachersPage: React.FC = () => {
   const [limit, setLimit] = useState(DEFAULT_LIMIT);
   const [addOpen, setAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', qualification: '', experience: '', specialization: '' });
+const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', qualification: '', experience: '', specialization: '' });
+  const [editOpen, setEditOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<any>(null);
+  const [editForm, setEditForm] = useState({ name: '', phone: '', status: 'active', qualification: '', experience: '', specialization: '' });
+  const [exporting, setExporting] = useState(false);
   const searchDebounce = useRef<ReturnType<typeof setTimeout>>();
 
   const load = useCallback((p = page, l = limit, s = search, st = statusFilter) => {
@@ -56,23 +61,83 @@ export const TeachersPage: React.FC = () => {
     setPage(1);
   };
 
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      const r = await api.admin.getTeachers({ all: 'true', search: search || undefined, status: statusFilter || undefined });
+      if (!r.success) throw new Error('Export failed');
+      downloadCsv(
+        `teachers-${new Date().toISOString().slice(0, 10)}.csv`,
+        ['Name', 'Email', 'Phone', 'Status', 'Qualification', 'Experience (yrs)', 'Specialisation'],
+        r.data.map((t: any) => [
+          t.name, t.email, t.phone, t.status,
+          t.qualification, t.experience, t.specialization,
+        ]),
+      );
+      toast.success(`Exported ${r.data.length} teacher${r.data.length === 1 ? '' : 's'}`);
+    } catch (err: any) {
+      toast.error(err?.message || 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
       await api.admin.createTeacher(form);
-      toast.success('Teacher added successfully');
+      toast.success('Teacher created — they can sign in with their email and password');
       setAddOpen(false);
-      setForm({ name: '', email: '', phone: '', qualification: '', experience: '', specialization: '' });
+      setForm({ name: '', email: '', phone: '', password: '', qualification: '', experience: '', specialization: '' });
       load(1, limit, search, statusFilter);
       setPage(1);
     } catch (err: any) { toast.error(err.message); } finally { setSaving(false); }
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete teacher ${name}?`)) return;
-    try { await api.admin.deleteTeacher(id); toast.success('Teacher deleted'); load(); }
+    if (!confirm(`Deactivate teacher ${name}? They will no longer be able to log in.`)) return;
+    try { await api.admin.deactivateTeacher(id); toast.success('Teacher deactivated'); load(); }
     catch (err: any) { toast.error(err.message); }
+  };
+
+  const handleStatusToggle = async (id: string, current: string) => {
+    const newStatus = current === 'active' ? 'inactive' : 'active';
+    try {
+      await api.admin.updateTeacher(id, { status: newStatus });
+      toast.success('Status updated');
+      load();
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const openEdit = async (t: any) => {
+    setEditTarget(t);
+    setEditForm({
+      name: t.name || '', phone: t.phone || '', status: t.status || 'active',
+      qualification: t.qualification || '', experience: t.experience || '', specialization: t.specialization || '',
+    });
+    setEditOpen(true);
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTarget) return;
+    setSaving(true);
+    try {
+      await api.admin.updateTeacher(editTarget.id, editForm);
+      toast.success('Teacher updated');
+      setEditOpen(false);
+      load();
+    } catch (err: any) { toast.error(err.message); } finally { setSaving(false); }
+  };
+
+  const handleRestore = async (id: string, name: string) => {
+    if (!confirm(`Restore teacher ${name}? They will be able to log in again.`)) return;
+    try {
+      await api.admin.restoreTeacher(id);
+      toast.success('Teacher restored');
+      load();
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const clearSearch = () => {
@@ -101,6 +166,7 @@ export const TeachersPage: React.FC = () => {
                   <div><Label>Full Name *</Label><Input value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} required /></div>
                   <div><Label>Email *</Label><Input type="email" value={form.email} onChange={(e) => setForm({...form, email: e.target.value})} required /></div>
                   <div><Label>Phone *</Label><Input value={form.phone} onChange={(e) => setForm({...form, phone: e.target.value})} required /></div>
+                  <div><Label>Initial Password *</Label><Input type="password" value={form.password} onChange={(e) => setForm({...form, password: e.target.value})} minLength={8} placeholder="Min 8 characters" required /></div>
                   <div><Label>Qualification</Label><Input value={form.qualification} onChange={(e) => setForm({...form, qualification: e.target.value})} /></div>
                   <div><Label>Experience (years)</Label><Input type="number" value={form.experience} onChange={(e) => setForm({...form, experience: e.target.value})} /></div>
                   <div className="col-span-2"><Label>Specialization</Label><Input value={form.specialization} onChange={(e) => setForm({...form, specialization: e.target.value})} /></div>
@@ -125,6 +191,9 @@ export const TeachersPage: React.FC = () => {
           <div className="flex items-center justify-between flex-wrap gap-3">
             <CardTitle>All Teachers</CardTitle>
             <div className="flex gap-3 flex-wrap">
+              <Button variant="outline" onClick={exportCsv} disabled={exporting}>
+                <Download className="h-4 w-4 mr-2" /> {exporting ? 'Exporting...' : 'Export CSV'}
+              </Button>
               <Select value={statusFilter || 'all'} onValueChange={handleStatusChange}>
                 <SelectTrigger className="w-36">
                   <SelectValue placeholder="All status" />
@@ -182,11 +251,26 @@ export const TeachersPage: React.FC = () => {
                         </TableCell>
                         <TableCell>{t.specialization || '—'}</TableCell>
                         <TableCell>{t.experience ? `${t.experience} yrs` : '—'}</TableCell>
-                        <TableCell><Badge variant={t.status === 'active' ? 'default' : 'secondary'}>{t.status}</Badge></TableCell>
+                        <TableCell><Badge
+                          variant={t.status === 'active' ? 'default' : 'secondary'}
+                          className="cursor-pointer"
+                          onClick={() => handleStatusToggle(t.id, t.status)}
+                        >{t.status}</Badge></TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" className="text-red-600" onClick={() => handleDelete(t.id, t.name)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" onClick={() => openEdit(t)} title="Edit" aria-label={`Edit teacher ${t.name}`}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            {t.status === 'inactive' ? (
+                              <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" onClick={() => handleRestore(t.id, t.name)} title="Restore" aria-label={`Restore teacher ${t.name}`}>
+                                <RotateCcw className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              <Button variant="ghost" size="icon" className="text-red-600" onClick={() => handleDelete(t.id, t.name)} title="Deactivate" aria-label={`Deactivate teacher ${t.name}`}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -202,13 +286,42 @@ export const TeachersPage: React.FC = () => {
               </div>
               <TablePagination
                 pagination={pagination}
-                onPageChange={(p) => { setPage(p); load(p, limit, search, statusFilter); }}
+                onPageChange={(p) => { setPage(p); }}
                 onLimitChange={(l) => { setLimit(l); setPage(1); load(1, l, search, statusFilter); }}
               />
             </>
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit Teacher</DialogTitle></DialogHeader>
+          <form onSubmit={handleUpdate} className="space-y-4 mt-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label>Full Name *</Label><Input value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} required /></div>
+              <div><Label>Phone *</Label><Input value={editForm.phone} onChange={(e) => setEditForm({...editForm, phone: e.target.value})} required /></div>
+              <div><Label>Status</Label>
+                <Select value={editForm.status} onValueChange={(v) => setEditForm({...editForm, status: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="blocked">Blocked</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Qualification</Label><Input value={editForm.qualification} onChange={(e) => setEditForm({...editForm, qualification: e.target.value})} /></div>
+              <div><Label>Experience (years)</Label><Input type="number" value={editForm.experience} onChange={(e) => setEditForm({...editForm, experience: e.target.value})} /></div>
+              <div className="col-span-2"><Label>Specialization</Label><Input value={editForm.specialization} onChange={(e) => setEditForm({...editForm, specialization: e.target.value})} /></div>
+            </div>
+            <Button type="submit" className="w-full" disabled={saving}>
+              {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : 'Save Changes'}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

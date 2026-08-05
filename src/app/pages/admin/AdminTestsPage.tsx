@@ -185,7 +185,7 @@ export const AdminTestsPage: React.FC = () => {
               </div>
               <TablePagination
                 pagination={pagination}
-                onPageChange={(p) => { setPage(p); load(p, search, statusFilter); }}
+                onPageChange={(p) => { setPage(p); }}
               />
             </>
           )}

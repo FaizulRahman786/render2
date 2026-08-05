@@ -41,6 +41,30 @@ export function useRealtimeNotifications({ onNotification, enabled = true }: Opt
   const onNotificationRef = useRef(onNotification);
   onNotificationRef.current = onNotification;
 
+  const scheduleReconnect = () => {
+    if (!mountedRef.current || !enabled) return;
+
+    if (retryRef.current >= MAX_RECONNECT_ATTEMPTS) {
+      // Long cooldown then reset the budget — a transient outage must not
+      // kill the stream forever.
+      reconnectTimerRef.current = setTimeout(() => {
+        retryRef.current = 0;
+        void connect();
+      }, 5 * 60 * 1000);
+      return;
+    }
+    const delay = Math.min(
+      BASE_RECONNECT_DELAY * 2 ** retryRef.current,
+      MAX_RECONNECT_DELAY,
+    );
+    // Add jitter: ±25% to prevent thundering herd
+    const jitteredDelay = delay * (0.75 + Math.random() * 0.5);
+    retryRef.current += 1;
+    reconnectTimerRef.current = setTimeout(() => {
+      void connect();
+    }, jitteredDelay);
+  };
+
   const connect = useCallback(async () => {
     if (!mountedRef.current || !enabled) return;
 
@@ -94,18 +118,12 @@ export function useRealtimeNotifications({ onNotification, enabled = true }: Opt
           frameEnd = buffer.indexOf('\n\n');
         }
       }
+
+      // Stream closed cleanly (e.g. server restart, idle timeout). Reconnect.
+      if (mountedRef.current && enabled) scheduleReconnect();
     } catch (error: any) {
       if (error?.name === 'AbortError' || !mountedRef.current || !enabled) return;
-
-      if (retryRef.current >= MAX_RECONNECT_ATTEMPTS) return;
-      const delay = Math.min(
-        BASE_RECONNECT_DELAY * 2 ** retryRef.current,
-        MAX_RECONNECT_DELAY,
-      );
-      retryRef.current += 1;
-      reconnectTimerRef.current = setTimeout(() => {
-        void connect();
-      }, delay);
+      scheduleReconnect();
     }
   }, [enabled]);
 

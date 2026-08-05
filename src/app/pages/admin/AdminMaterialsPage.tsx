@@ -294,7 +294,7 @@ export const AdminMaterialsPage: React.FC = () => {
                                   <Eye className="h-3.5 w-3.5" />
                                 </a>
                               )}
-                              <Button variant="ghost" size="icon" className="text-red-600 h-7 w-7" onClick={() => handleDelete(m.id)}>
+                              <Button variant="ghost" size="icon" className="text-red-600 h-7 w-7" onClick={() => handleDelete(m.id)} aria-label={`Delete material ${m.title ?? ''}`}>
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </div>
@@ -315,7 +315,7 @@ export const AdminMaterialsPage: React.FC = () => {
               </div>
               <TablePagination
                 pagination={pagination}
-                onPageChange={(p) => { setPage(p); load(p, search, typeFilter); }}
+                onPageChange={(p) => { setPage(p); }}
               />
             </>
           )}

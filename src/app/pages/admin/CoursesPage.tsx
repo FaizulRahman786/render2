@@ -6,6 +6,7 @@ import { Badge } from '../../components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Plus, Trash2, Loader2, RefreshCw, GraduationCap, ArrowLeft, BookOpen, ChevronRight, FileText, Pencil } from 'lucide-react';
 import { api } from '../../lib/api';
@@ -33,6 +34,16 @@ export const CoursesPage: React.FC = () => {
   const [courseForm, setCourseForm] = useState({ name: '', description: '', classLevel: '', duration: '', fee: '' });
   const [subjectForm, setSubjectForm] = useState({ name: '', description: '' });
   const [chapterForm, setChapterForm] = useState({ title: '', description: '', videoUrl: '', duration: '' });
+
+  const [editCourseOpen, setEditCourseOpen] = useState(false);
+  const [editCourseId, setEditCourseId] = useState('');
+  const [editCourseForm, setEditCourseForm] = useState({ name: '', description: '', classLevel: '', duration: '', fee: '', status: 'active' });
+  const [editSubjectOpen, setEditSubjectOpen] = useState(false);
+  const [editSubjectId, setEditSubjectId] = useState('');
+  const [editSubjectForm, setEditSubjectForm] = useState({ name: '', description: '' });
+  const [editChapterOpen, setEditChapterOpen] = useState(false);
+  const [editChapterId, setEditChapterId] = useState('');
+  const [editChapterForm, setEditChapterForm] = useState({ title: '', description: '', videoUrl: '', duration: '' });
 
   // Load courses
   const loadCourses = () => {
@@ -81,6 +92,55 @@ export const CoursesPage: React.FC = () => {
     catch (err: any) { toast.error(err.message); }
   };
 
+  const openEditCourse = (c: any) => {
+    setEditCourseId(c.id);
+    setEditCourseForm({ name: c.name || '', description: c.description || '', classLevel: c.classLevel || '', duration: c.duration || '', fee: c.fee || '', status: c.status || 'active' });
+    setEditCourseOpen(true);
+  };
+
+  const handleEditCourse = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true);
+    try {
+      await api.admin.updateCourse(editCourseId, editCourseForm);
+      toast.success('Course updated'); setEditCourseOpen(false); loadCourses();
+    } catch (err: any) { toast.error(err.message); } finally { setSaving(false); }
+  };
+
+  const openEditSubject = (sub: any) => {
+    setEditSubjectId(sub.id);
+    setEditSubjectForm({ name: sub.name || '', description: sub.description || '' });
+    setEditSubjectOpen(true);
+  };
+
+  const handleEditSubject = async (e: React.FormEvent) => {
+    e.preventDefault(); if (!selectedCourse) return; setSaving(true);
+    try {
+      await api.admin.updateSubject(selectedCourse.id, editSubjectId, editSubjectForm);
+      toast.success('Subject updated'); setEditSubjectOpen(false);
+      const r = await api.admin.getSubjects(selectedCourse.id);
+      if (r.success) setSubjects(r.data);
+    } catch (err: any) { toast.error(err.message); } finally { setSaving(false); }
+  };
+
+  const openEditChapter = (ch: any) => {
+    setEditChapterId(ch.id);
+    setEditChapterForm({ title: ch.title || '', description: ch.description || '', videoUrl: ch.videoUrl || '', duration: ch.duration || '' });
+    setEditChapterOpen(true);
+  };
+
+  const handleEditChapter = async (e: React.FormEvent) => {
+    e.preventDefault(); if (!selectedSubject) return; setSaving(true);
+    try {
+      const payload: Record<string, any> = { title: editChapterForm.title, description: editChapterForm.description };
+      if (editChapterForm.videoUrl.trim()) payload.videoUrl = editChapterForm.videoUrl.trim();
+      if (editChapterForm.duration) payload.duration = editChapterForm.duration;
+      await api.admin.updateChapter(selectedSubject.id, editChapterId, payload);
+      toast.success('Chapter updated'); setEditChapterOpen(false);
+      const r = await api.admin.getChapters(selectedSubject.id);
+      if (r.success) setChapters(r.data);
+    } catch (err: any) { toast.error(err.message); } finally { setSaving(false); }
+  };
+
   const handleAddSubject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCourse) return;
@@ -110,7 +170,10 @@ export const CoursesPage: React.FC = () => {
     if (!selectedSubject) return;
     setSaving(true);
     try {
-      await api.admin.createChapter(selectedSubject.id, chapterForm);
+      const payload: Record<string, any> = { title: chapterForm.title, description: chapterForm.description };
+      if (chapterForm.videoUrl.trim()) payload.videoUrl = chapterForm.videoUrl.trim();
+      if (chapterForm.duration) payload.duration = chapterForm.duration;
+      await api.admin.createChapter(selectedSubject.id, payload);
       toast.success('Chapter added');
       setChapterOpen(false);
       setChapterForm({ title: '', description: '', videoUrl: '', duration: '' });
@@ -190,9 +253,14 @@ export const CoursesPage: React.FC = () => {
                       </TableCell>
                       <TableCell className="text-sm">{ch.duration ? `${ch.duration} min` : '—'}</TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="icon" className="text-red-600 h-8 w-8" onClick={() => handleDeleteChapter(ch.id, ch.title)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="icon" className="text-blue-600 h-8 w-8" onClick={() => openEditChapter(ch)} title="Edit" aria-label={`Edit chapter ${ch.title}`}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="text-red-600 h-8 w-8" onClick={() => handleDeleteChapter(ch.id, ch.title)} aria-label={`Delete chapter ${ch.title}`}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -204,6 +272,21 @@ export const CoursesPage: React.FC = () => {
             )}
           </CardContent>
         </Card>
+
+        <Dialog open={editChapterOpen} onOpenChange={setEditChapterOpen}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Edit Chapter</DialogTitle></DialogHeader>
+            <form onSubmit={handleEditChapter} className="space-y-4 mt-4">
+              <div><Label>Title *</Label><Input value={editChapterForm.title} onChange={(e) => setEditChapterForm({ ...editChapterForm, title: e.target.value })} required /></div>
+              <div><Label>Description</Label><Textarea value={editChapterForm.description} onChange={(e) => setEditChapterForm({ ...editChapterForm, description: e.target.value })} /></div>
+              <div><Label>Video URL</Label><Input placeholder="YouTube, Vimeo, or direct URL" value={editChapterForm.videoUrl} onChange={(e) => setEditChapterForm({ ...editChapterForm, videoUrl: e.target.value })} /></div>
+              <div><Label>Duration (minutes)</Label><Input type="number" value={editChapterForm.duration} onChange={(e) => setEditChapterForm({ ...editChapterForm, duration: e.target.value })} /></div>
+              <Button type="submit" className="w-full" disabled={saving}>
+                {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : 'Save Changes'}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
@@ -249,14 +332,27 @@ export const CoursesPage: React.FC = () => {
               <CardContent className="p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div className="p-2 bg-blue-100 rounded-lg"><BookOpen className="h-5 w-5 text-blue-600" /></div>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-red-500 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="text-purple-600 h-7 w-7"
+                    onClick={(e) => { e.stopPropagation(); openEditSubject(sub); }}
+                    title="Edit"
+                    aria-label={`Edit subject ${sub.name}`}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-red-500 h-7 w-7"
                     onClick={(e) => { e.stopPropagation(); handleDeleteSubject(sub.id, sub.name); }}
+                    aria-label={`Delete subject ${sub.name}`}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
+                </div>
                 </div>
                 <h3 className="font-bold text-base mb-1">{sub.name}</h3>
                 <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{sub.description || 'No description'}</p>
@@ -271,6 +367,19 @@ export const CoursesPage: React.FC = () => {
             <div className="col-span-3 text-center py-12 text-muted-foreground">No subjects yet. Add your first subject!</div>
           )}
         </div>
+
+        <Dialog open={editSubjectOpen} onOpenChange={setEditSubjectOpen}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Edit Subject</DialogTitle></DialogHeader>
+            <form onSubmit={handleEditSubject} className="space-y-4 mt-4">
+              <div><Label>Subject Name *</Label><Input value={editSubjectForm.name} onChange={(e) => setEditSubjectForm({ ...editSubjectForm, name: e.target.value })} required /></div>
+              <div><Label>Description</Label><Textarea value={editSubjectForm.description} onChange={(e) => setEditSubjectForm({ ...editSubjectForm, description: e.target.value })} /></div>
+              <Button type="submit" className="w-full" disabled={saving}>
+                {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : 'Save Changes'}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
@@ -295,8 +404,8 @@ export const CoursesPage: React.FC = () => {
                 <div><Label>Course Name *</Label><Input value={courseForm.name} onChange={(e) => setCourseForm({...courseForm, name: e.target.value})} required /></div>
                 <div><Label>Description *</Label><Textarea value={courseForm.description} onChange={(e) => setCourseForm({...courseForm, description: e.target.value})} required /></div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div><Label>Class Level</Label><Input placeholder="e.g. Class 11-12" value={courseForm.classLevel} onChange={(e) => setCourseForm({...courseForm, classLevel: e.target.value})} /></div>
-                  <div><Label>Duration (months)</Label><Input type="number" value={courseForm.duration} onChange={(e) => setCourseForm({...courseForm, duration: e.target.value})} /></div>
+                  <div><Label>Class Level *</Label><Input placeholder="e.g. Class 11-12" value={courseForm.classLevel} onChange={(e) => setCourseForm({...courseForm, classLevel: e.target.value})} required /></div>
+                  <div><Label>Duration (months) *</Label><Input type="number" value={courseForm.duration} onChange={(e) => setCourseForm({...courseForm, duration: e.target.value})} required /></div>
                   <div className="col-span-2"><Label>Fee (₹) *</Label><Input type="number" value={courseForm.fee} onChange={(e) => setCourseForm({...courseForm, fee: e.target.value})} required /></div>
                 </div>
                 <Button type="submit" className="w-full" disabled={saving}>
@@ -325,9 +434,14 @@ export const CoursesPage: React.FC = () => {
                   <div className="p-2 bg-purple-100 rounded-lg"><GraduationCap className="h-6 w-6 text-purple-600" /></div>
                   <div className="flex items-center gap-2">
                     <Badge variant={c.status === 'active' ? 'default' : 'secondary'}>{c.status}</Badge>
-                    <Button variant="ghost" size="icon" className="text-red-600 h-7 w-7" onClick={() => handleDeleteCourse(c.id, c.name)}>
+                    <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" className="text-purple-600 h-7 w-7" onClick={() => openEditCourse(c)} title="Edit" aria-label={`Edit course ${c.name}`}>
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="text-red-600 h-7 w-7" onClick={() => handleDeleteCourse(c.id, c.name)} aria-label={`Delete course ${c.name}`}>
                       <Trash2 className="h-3 w-3" />
                     </Button>
+                  </div>
                   </div>
                 </div>
                 <h3 className="font-bold text-lg mb-1">{c.name}</h3>
@@ -352,6 +466,33 @@ export const CoursesPage: React.FC = () => {
           )}
         </div>
       )}
+
+      <Dialog open={editCourseOpen} onOpenChange={setEditCourseOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit Course</DialogTitle></DialogHeader>
+          <form onSubmit={handleEditCourse} className="space-y-4 mt-4">
+            <div><Label>Course Name *</Label><Input value={editCourseForm.name} onChange={(e) => setEditCourseForm({...editCourseForm, name: e.target.value})} required /></div>
+            <div><Label>Description *</Label><Textarea value={editCourseForm.description} onChange={(e) => setEditCourseForm({...editCourseForm, description: e.target.value})} required /></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label>Class Level</Label><Input placeholder="e.g. Class 11-12" value={editCourseForm.classLevel} onChange={(e) => setEditCourseForm({...editCourseForm, classLevel: e.target.value})} /></div>
+              <div><Label>Duration (months)</Label><Input type="number" value={editCourseForm.duration} onChange={(e) => setEditCourseForm({...editCourseForm, duration: e.target.value})} /></div>
+              <div><Label>Fee (₹) *</Label><Input type="number" value={editCourseForm.fee} onChange={(e) => setEditCourseForm({...editCourseForm, fee: e.target.value})} required /></div>
+              <div><Label>Status</Label>
+                <Select value={editCourseForm.status} onValueChange={(v) => setEditCourseForm({...editCourseForm, status: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button type="submit" className="w-full" disabled={saving}>
+              {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : 'Save Changes'}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

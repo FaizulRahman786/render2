@@ -7,8 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Label } from '../../components/ui/label';
-import { Plus, Search, Trash2, Loader2, RefreshCw, X } from 'lucide-react';
+import { Plus, Search, Trash2, Loader2, RefreshCw, X, Pencil, RotateCcw, Download } from 'lucide-react';
 import { api } from '../../lib/api';
+import { downloadCsv } from '../../lib/csv';
 import { TablePagination } from '../../components/shared/TablePagination';
 import { toast } from 'sonner';
 
@@ -24,7 +25,12 @@ export const StudentsPage: React.FC = () => {
   const [limit, setLimit] = useState(DEFAULT_LIMIT);
   const [addOpen, setAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', parentName: '', parentPhone: '' });
+const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', parentName: '', parentPhone: '' });
+  const [editOpen, setEditOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<any>(null);
+  const [editForm, setEditForm] = useState({ name: '', phone: '', status: 'active', parentName: '', parentPhone: '', address: '', courseId: '' });
+  const [courses, setCourses] = useState<any[]>([]);
+  const [exporting, setExporting] = useState(false);
   const searchDebounce = useRef<ReturnType<typeof setTimeout>>();
 
   const load = useCallback((p = page, l = limit, s = search, st = statusFilter) => {
@@ -56,14 +62,36 @@ export const StudentsPage: React.FC = () => {
     setPage(1);
   };
 
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      const r = await api.admin.getStudents({ all: 'true', search: search || undefined, status: statusFilter || undefined });
+      if (!r.success) throw new Error('Export failed');
+      downloadCsv(
+        `students-${new Date().toISOString().slice(0, 10)}.csv`,
+        ['Name', 'Email', 'Phone', 'Status', 'Parent Name', 'Parent Phone', 'Enrolled'],
+        r.data.map((s: any) => [
+          s.name, s.email, s.phone, s.status,
+          s.parentName, s.parentPhone,
+          s.enrollmentDate ? new Date(s.enrollmentDate).toLocaleDateString() : '',
+        ]),
+      );
+      toast.success(`Exported ${r.data.length} student${r.data.length === 1 ? '' : 's'}`);
+    } catch (err: any) {
+      toast.error(err?.message || 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
       await api.admin.createStudent(form);
-      toast.success('Student added successfully');
+      toast.success('Student created — they can sign in with their email and password');
       setAddOpen(false);
-      setForm({ name: '', email: '', phone: '', parentName: '', parentPhone: '' });
+      setForm({ name: '', email: '', phone: '', password: '', parentName: '', parentPhone: '' });
       load(1, limit, search, statusFilter);
       setPage(1);
     } catch (err: any) {
@@ -72,10 +100,42 @@ export const StudentsPage: React.FC = () => {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete student ${name}?`)) return;
+    if (!confirm(`Deactivate student ${name}? Their academic history is preserved and they will no longer be able to log in.`)) return;
     try {
-      await api.admin.deleteStudent(id);
-      toast.success('Student deleted');
+      await api.admin.deactivateStudent(id);
+      toast.success('Student deactivated');
+      load();
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const openEdit = async (s: any) => {
+    setEditTarget(s);
+    setEditForm({
+      name: s.name || '', phone: s.phone || '', status: s.status || 'active',
+      parentName: s.parentName || '', parentPhone: s.parentPhone || '',
+      address: s.address || '', courseId: s.courseId || '',
+    });
+    try { const r = await api.admin.getCourses({ all: true }); if (r.success) setCourses(r.data); } catch {}
+    setEditOpen(true);
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTarget) return;
+    setSaving(true);
+    try {
+      await api.admin.updateStudent(editTarget.id, editForm);
+      toast.success('Student updated');
+      setEditOpen(false);
+      load();
+    } catch (err: any) { toast.error(err.message); } finally { setSaving(false); }
+  };
+
+  const handleRestore = async (id: string, name: string) => {
+    if (!confirm(`Restore student ${name}? They will be able to log in again.`)) return;
+    try {
+      await api.admin.restoreStudent(id);
+      toast.success('Student restored');
       load();
     } catch (err: any) { toast.error(err.message); }
   };
@@ -117,6 +177,7 @@ export const StudentsPage: React.FC = () => {
                   <div><Label>Full Name *</Label><Input value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} required /></div>
                   <div><Label>Email *</Label><Input type="email" value={form.email} onChange={(e) => setForm({...form, email: e.target.value})} required /></div>
                   <div><Label>Phone *</Label><Input value={form.phone} onChange={(e) => setForm({...form, phone: e.target.value})} required /></div>
+                  <div><Label>Initial Password *</Label><Input type="password" value={form.password} onChange={(e) => setForm({...form, password: e.target.value})} minLength={8} placeholder="Min 8 characters" required /></div>
                   <div><Label>Parent Name</Label><Input value={form.parentName} onChange={(e) => setForm({...form, parentName: e.target.value})} /></div>
                   <div><Label>Parent Phone</Label><Input value={form.parentPhone} onChange={(e) => setForm({...form, parentPhone: e.target.value})} /></div>
                 </div>
@@ -140,6 +201,9 @@ export const StudentsPage: React.FC = () => {
           <div className="flex items-center justify-between flex-wrap gap-3">
             <CardTitle>All Students</CardTitle>
             <div className="flex gap-3 flex-wrap">
+              <Button variant="outline" onClick={exportCsv} disabled={exporting}>
+                <Download className="h-4 w-4 mr-2" /> {exporting ? 'Exporting...' : 'Export CSV'}
+              </Button>
               <Select value={statusFilter || 'all'} onValueChange={handleStatusChange}>
                 <SelectTrigger className="w-36">
                   <SelectValue placeholder="All status" />
@@ -214,9 +278,20 @@ export const StudentsPage: React.FC = () => {
                           {s.enrollmentDate ? new Date(s.enrollmentDate).toLocaleDateString() : '—'}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(s.id, s.name)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" onClick={() => openEdit(s)} title="Edit" aria-label={`Edit student ${s.name}`}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            {s.status === 'inactive' ? (
+                              <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" onClick={() => handleRestore(s.id, s.name)} title="Restore" aria-label={`Restore student ${s.name}`}>
+                                <RotateCcw className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(s.id, s.name)} title="Deactivate" aria-label={`Deactivate student ${s.name}`}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -233,13 +308,51 @@ export const StudentsPage: React.FC = () => {
 
               <TablePagination
                 pagination={pagination}
-                onPageChange={(p) => { setPage(p); load(p, limit, search, statusFilter); }}
+                onPageChange={(p) => { setPage(p); }}
                 onLimitChange={(l) => { setLimit(l); setPage(1); load(1, l, search, statusFilter); }}
               />
             </>
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit Student</DialogTitle></DialogHeader>
+          <form onSubmit={handleUpdate} className="space-y-4 mt-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label>Full Name *</Label><Input value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} required /></div>
+              <div><Label>Phone *</Label><Input value={editForm.phone} onChange={(e) => setEditForm({...editForm, phone: e.target.value})} required /></div>
+              <div><Label>Status</Label>
+                <Select value={editForm.status} onValueChange={(v) => setEditForm({...editForm, status: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="blocked">Blocked</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Course</Label>
+                <Select value={editForm.courseId || 'none'} onValueChange={(v) => setEditForm({...editForm, courseId: v === 'none' ? '' : v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No course</SelectItem>
+                    {courses.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Parent Name</Label><Input value={editForm.parentName} onChange={(e) => setEditForm({...editForm, parentName: e.target.value})} /></div>
+              <div><Label>Parent Phone</Label><Input value={editForm.parentPhone} onChange={(e) => setEditForm({...editForm, parentPhone: e.target.value})} /></div>
+              <div className="col-span-2"><Label>Address</Label><Input value={editForm.address} onChange={(e) => setEditForm({...editForm, address: e.target.value})} /></div>
+            </div>
+            <Button type="submit" className="w-full" disabled={saving}>
+              {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : 'Save Changes'}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

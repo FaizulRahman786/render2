@@ -222,7 +222,7 @@ export const FeesPage: React.FC = () => {
               </div>
               <TablePagination
                 pagination={pagination}
-                onPageChange={(p) => { setPage(p); load(p, search); }}
+                onPageChange={(p) => { setPage(p); }}
                 onLimitChange={() => {}}
               />
             </>

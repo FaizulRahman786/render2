@@ -27,6 +27,7 @@ export const TeacherTestsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
   const [form, setForm] = useState({ title: '', batchId: '', totalMarks: '100', duration: '60', passingMarks: '', startDate: '', endDate: '' });
 
   // Question builder state
@@ -73,11 +74,14 @@ export const TeacherTestsPage: React.FC = () => {
   };
 
   const handlePublish = async (id: string) => {
+    if (publishingId) return;
+    setPublishingId(id);
     try {
       await api.teacher.updateTest(id, { status: 'published' });
       toast.success('Test published — students can now see and attempt it');
       load();
     } catch (err: any) { toast.error(err.message); }
+    finally { setPublishingId(null); }
   };
 
   const openQuestions = async (test: any) => {
@@ -223,8 +227,8 @@ export const TeacherTestsPage: React.FC = () => {
                           </Button>
                         )}
                         {t.status === 'draft' && (
-                          <Button size="sm" onClick={() => handlePublish(t.id)}>
-                            Publish
+                          <Button size="sm" onClick={() => handlePublish(t.id)} disabled={publishingId !== null}>
+                            {publishingId === t.id ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Publish'}
                           </Button>
                         )}
                       </div>

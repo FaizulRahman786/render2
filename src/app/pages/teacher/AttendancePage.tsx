@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
-import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
@@ -9,9 +8,10 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Loader2, CalendarCheck, Plus, CheckCircle2, XCircle, Clock, Edit, Trash2, ChevronRight } from 'lucide-react';
 import { api, BASE_URL, getAuthToken } from '../../lib/api';
+import { toast } from 'sonner';
 import { format } from 'date-fns';
 
-const authHeader = async () => {
+const authHeader = async (): Promise<Record<string, string>> => {
   const token = await getAuthToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
@@ -19,7 +19,14 @@ const apiFetch = async (url: string, opts?: RequestInit) => {
   // url may be like '/api/teacher/...' — strip leading /api to join with BASE_URL which already contains /api
   const path = url.startsWith('/api') ? url.slice(4) : url;
   const headers = await authHeader();
-  return fetch(`${BASE_URL}${path}`, { ...opts, headers: { 'Content-Type': 'application/json', ...headers, ...(opts?.headers ?? {}) } }).then(r => r.json());
+  const res = await fetch(`${BASE_URL}${path}`, { ...opts, headers: { 'Content-Type': 'application/json', ...headers, ...(opts?.headers ?? {}) } });
+  const contentType = res.headers.get('content-type') || '';
+  const data = contentType.includes('application/json') ? await res.json() : await res.text();
+  if (!res.ok) {
+    const message = typeof data === 'string' ? data : (data.error || data.message || `Request failed (${res.status})`);
+    throw new Error(message);
+  }
+  return data;
 };
 
 const STATUS_STYLES: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
@@ -50,16 +57,21 @@ export const AttendancePage: React.FC = () => {
     }).catch(console.error);
   }, []);
 
-  const loadSessions = useCallback((batchId: string) => {
+  const fetchSessions = useCallback((batchId: string, resetSelection: boolean) => {
     if (!batchId) return;
     setLoadingSessions(true);
-    setActiveSession(null);
-    setSessionRecords([]);
+    if (resetSelection) {
+      setActiveSession(null);
+      setSessionRecords([]);
+    }
     apiFetch(`/api/teacher/attendance/sessions?batchId=${batchId}`)
       .then(r => { if (r.success) setSessions(r.data); })
       .catch(console.error)
       .finally(() => setLoadingSessions(false));
   }, []);
+
+  const loadSessions = useCallback((batchId: string) => fetchSessions(batchId, true), [fetchSessions]);
+  const refreshSessions = useCallback((batchId: string) => fetchSessions(batchId, false), [fetchSessions]);
 
   useEffect(() => { if (selectedBatch) loadSessions(selectedBatch); }, [selectedBatch, loadSessions]);
 
@@ -80,17 +92,19 @@ export const AttendancePage: React.FC = () => {
     if (!activeSession) return;
     setSaving(true);
     try {
-      await apiFetch(`/api/teacher/attendance/sessions/${activeSession.id}`, {
+      const session = activeSession;
+      const r = await apiFetch(`/api/teacher/attendance/sessions/${session.id}`, {
         method: 'PUT',
         body: JSON.stringify({ records: sessionRecords.map(r => ({ studentId: r.studentId, status: r.status, note: r.note })) }),
       });
-      // refresh sessions list to update counts
-      loadSessions(selectedBatch);
+      if (!r || !r.success) { toast.error('Failed to save attendance. Please try again.'); return; }
       const present = sessionRecords.filter(r => r.status === 'present').length;
       const absent  = sessionRecords.filter(r => r.status === 'absent').length;
       const late    = sessionRecords.filter(r => r.status === 'late').length;
-      setActiveSession((prev: any) => ({ ...prev, presentCount: present, absentCount: absent, lateCount: late, totalRecords: sessionRecords.length }));
-    } catch (e) { console.error(e); }
+      setActiveSession({ ...session, presentCount: present, absentCount: absent, lateCount: late, totalRecords: sessionRecords.length });
+      refreshSessions(selectedBatch);
+      toast.success('Attendance saved');
+    } catch (e: any) { console.error(e); toast.error(e.message || 'Failed to save attendance'); }
     finally { setSaving(false); }
   };
 
@@ -107,16 +121,22 @@ export const AttendancePage: React.FC = () => {
         setNewSession({ title: '', sessionDate: '', topic: '' });
         loadSessions(selectedBatch);
         openSession(r.data.session);
+      } else {
+        toast.error(r.error || 'Failed to create session');
       }
-    } catch (e) { console.error(e); }
+    } catch (e: any) { console.error(e); toast.error(e.message || 'Failed to create session'); }
     finally { setCreateLoading(false); }
   };
 
   const handleDelete = async (sessionId: string) => {
     if (!confirm('Delete this attendance session? This cannot be undone.')) return;
-    await apiFetch(`/api/teacher/attendance/sessions/${sessionId}`, { method: 'DELETE' });
-    if (activeSession?.id === sessionId) { setActiveSession(null); setSessionRecords([]); }
-    loadSessions(selectedBatch);
+    try {
+      const r = await apiFetch(`/api/teacher/attendance/sessions/${sessionId}`, { method: 'DELETE' });
+      if (!r?.success) { toast.error(r?.error || 'Failed to delete session'); return; }
+      if (activeSession?.id === sessionId) { setActiveSession(null); setSessionRecords([]); }
+      loadSessions(selectedBatch);
+      toast.success('Session deleted');
+    } catch (e: any) { console.error(e); toast.error(e.message || 'Failed to delete session'); }
   };
 
   const batch = batches.find(b => b.id === selectedBatch);
@@ -197,8 +217,12 @@ export const AttendancePage: React.FC = () => {
                   {sessions.map((s) => (
                     <div
                       key={s.id}
+                      role="button"
+                      tabIndex={0}
                       className={`flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors ${activeSession?.id === s.id ? 'bg-indigo-50 border-l-2 border-indigo-500' : ''}`}
                       onClick={() => openSession(s)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSession(s); } }}
+                      aria-label={s.title}
                     >
                       <div className="min-w-0 flex-1">
                         <p className="font-medium text-sm truncate">{s.title}</p>
@@ -210,7 +234,7 @@ export const AttendancePage: React.FC = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-1 ml-2">
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600" onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }}>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600" onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }} aria-label={`Delete session ${s.title}`}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />

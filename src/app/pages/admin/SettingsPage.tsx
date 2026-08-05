@@ -5,16 +5,17 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Badge } from '../../components/ui/badge';
 import { Switch } from '../../components/ui/switch';
-import { Building2, Bell, Shield, DollarSign, Save, Loader2, CheckCircle2 } from 'lucide-react';
+import { Building2, Bell, Shield, DollarSign, Save, Loader2, CheckCircle2, Globe, Link2, TriangleAlert } from 'lucide-react';
 import { api } from '../../lib/api';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router';
 
 const DEFAULT_SETTINGS = {
-  instituteName: 'Excellence Coaching Institute',
-  email: 'admin@excellence.edu.in',
-  phone: '9876500000',
+  instituteName: '',
+  email: '',
+  phone: '',
   website: '',
-  address: '123, Coaching Hub, Sector 18, Noida, UP – 201301',
+  address: '',
   notifFeeReminder: 'true',
   notifClassAlert: 'true',
   notifTestResult: 'true',
@@ -22,9 +23,11 @@ const DEFAULT_SETTINGS = {
   feeInstallments: 'true',
   lateFeeEnabled: 'true',
   lateFeePercent: '2',
+  maintenanceMode: 'false',
 };
 
 export const SettingsPage: React.FC = () => {
+  const navigate = useNavigate();
   const [settings, setSettings] = useState<Record<string, string>>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -175,6 +178,40 @@ export const SettingsPage: React.FC = () => {
         </CardContent>
       </Card>
 
+      {/* Website & Public Site */}
+      <Card className={settings.maintenanceMode === 'true' ? 'border-red-300' : ''}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Globe className="h-5 w-5 text-blue-600" />
+            Website & Public Site
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className={`flex items-center justify-between p-4 border rounded-lg ${settings.maintenanceMode === 'true' ? 'border-red-300 bg-red-50' : ''}`}>
+            <div>
+              <p className="font-medium flex items-center gap-2">
+                Maintenance Mode
+                {settings.maintenanceMode === 'true' && <Badge className="bg-red-600"><TriangleAlert className="h-3 w-3 mr-1" />Active</Badge>}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                When enabled, the public website shows a maintenance notice. Admins can still view it.
+              </p>
+            </div>
+            <Switch checked={settings.maintenanceMode === 'true'} onCheckedChange={() => toggle('maintenanceMode')} />
+          </div>
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div>
+              <p className="font-medium flex items-center gap-2"><Link2 className="h-4 w-4 text-gray-500" />Website Tools</p>
+              <p className="text-sm text-muted-foreground">Edit public content, notices, events, enquiries and media in the CMS.</p>
+            </div>
+            <Button variant="outline" onClick={() => navigate('/admin/website')}>
+              <Globe className="h-4 w-4 mr-2" />Open Website Tools
+            </Button>
+          </div>
+          <SaveBtn section="website" keys={['maintenanceMode']} color="from-blue-600 to-indigo-600" />
+        </CardContent>
+      </Card>
+
       {/* Security */}
       <Card>
         <CardHeader>
@@ -188,7 +225,7 @@ export const SettingsPage: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-medium">Supabase Authentication</p>
-                <p className="text-sm text-muted-foreground">Admin identity is managed through Supabase phone OTP or Google sign-in.</p>
+                <p className="text-sm text-muted-foreground">All users sign in with email and password; roles are assigned by the admin.</p>
               </div>
               <Badge variant="secondary"><CheckCircle2 className="h-3 w-3 mr-1" />Active</Badge>
             </div>
