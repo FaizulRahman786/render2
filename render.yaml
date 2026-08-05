@@ -1,26 +1,41 @@
 services:
   - type: web
     name: coaching-backend
-    env: node
+    runtime: node
     plan: free
-    region: oregon
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --prefix apps/backend run build
-    startCommand: pnpm --prefix apps/backend start
-    healthCheckPath: /api/health
-    repo: https://github.com/h77107405-netizen/second
-    branch: main
+    rootDir: apps/backend
+    buildCommand: "npm ci --include=dev && npm run build"
+    startCommand: "npm start"
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: '3001'
+        value: "3001"
       - key: DATABASE_URL
         sync: false
-      - key: AUTH_PROVIDER
-        value: supabase
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_ANON_KEY
         sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: CLOUDINARY_URL
+        sync: false
       - key: CORS_ORIGIN
+        value: https://second-tan-theta.vercel.app
+      - key: AUTH_PROVIDER
+        value: supabase
+      - key: ENABLE_AUTH_MOCK
+        value: "false"
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_UID
+        sync: false
+      - key: ADMIN_PASSWORD
         sync: false
