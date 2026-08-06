@@ -9,9 +9,6 @@ export interface AppError extends Error {
   isOperational?: boolean;
 }
 
-// Postgres error codes → clean HTTP responses. Driver errors are NOT
-// operational (we never raised them), so they must be mapped to friendly
-// messages without leaking constraint names / SQL details.
 const PG_ERROR_MAP: Record<string, { status: number; message: string }> = {
   '23505': { status: 409, message: 'This record already exists' },
   '23503': { status: 422, message: 'The referenced record does not exist or is in use' },
@@ -20,6 +17,22 @@ const PG_ERROR_MAP: Record<string, { status: number; message: string }> = {
   '22003': { status: 400, message: 'Numeric value out of range' },
 };
 
+// ORMs (drizzle) wrap driver errors in their own Error subclass and attach the
+// underlying PostgresError as `cause`. Unpack the full chain so the real PG
+// error code (e.g. 23503 FK violation) is surfaced for mapping.
+function unwrapPgsError(err: unknown): { code?: string; message?: string } | null {
+  let current: any = err;
+  const seen = new Set<any>();
+  while (current && typeof current === 'object' && !seen.has(current)) {
+    seen.add(current);
+    if (typeof current.code === 'string' && /^[A-Z0-9]{5}$/.test(current.code)) {
+      return { code: current.code, message: current.message };
+    }
+    current = current.cause;
+  }
+  return null;
+}
+
 export function errorHandler(
   err: AppError,
   req: Request,
@@ -27,7 +40,8 @@ export function errorHandler(
   next: NextFunction
 ): void {
   console.log('[ERROR HANDLER CALLED]', err?.message);
-  const pgCode = (err as any)?.code;
+  const pgError = unwrapPgsError(err);
+  const pgCode = pgError?.code;
   const pgMapping = typeof pgCode === 'string' ? PG_ERROR_MAP[pgCode] : undefined;
   const statusCode = pgMapping?.status ?? err.statusCode ?? 500;
   const message = err.message || 'Internal server error';
