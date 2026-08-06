@@ -115,11 +115,10 @@ app.use(cors({
       logger.debug({ origin, nodeEnv: config.nodeEnv, allowedOrigins }, 'CORS Debug');
     }
     if (!origin) {
-      if (config.nodeEnv !== 'production') {
-        callback(null, true);
-      } else {
-        callback(new Error('CORS: Origin header required in production'));
-      }
+      // Requests without an Origin header (health checks, curl, server-to-server,
+      // same-origin) are allowed. Browsers always attach Origin for cross-origin
+      // fetches, so allowing its absence does not weaken the allow-list below.
+      callback(null, true);
       return;
     }
 
