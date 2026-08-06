@@ -1,5 +1,13 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { WebSocket as NodeWebSocket } from 'ws';
 import { config } from '../config/env.js';
+
+// @supabase/supabase-js (>=2.109) requires a WebSocket implementation at runtime.
+// Node.js < 22 has no native global WebSocket, so polyfill with the `ws` package.
+// This module is imported before the Supabase client is ever created.
+if (typeof globalThis.WebSocket === 'undefined') {
+  (globalThis as any).WebSocket = NodeWebSocket as any;
+}
 
 let client: SupabaseClient | null = null;
 
