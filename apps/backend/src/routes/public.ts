@@ -675,6 +675,7 @@ router.get('/custom/:slug/files/*path', asyncHandler(async (req, res) => {
   res.set('X-Content-Type-Options', 'nosniff');
   res.set('Cache-Control', pageData.status === 'published' ? 'public, max-age=300' : 'no-store');
   const frameAncestorsStr = ["'self'", ...allowedOrigins].join(' ');
+  res.set('Cross-Origin-Opener-Policy', 'unsafe-none');
   res.set('Content-Security-Policy', `frame-ancestors ${frameAncestorsStr}; sandbox allow-scripts allow-same-origin allow-forms allow-modals allow-popups`);
   res.send(file.content);
 }));

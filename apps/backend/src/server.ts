@@ -78,6 +78,7 @@ app.use(helmet({
   },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false,
 }));
 
 // CORS runs BEFORE rate limiting so cross-origin OPTIONS preflights are answered
