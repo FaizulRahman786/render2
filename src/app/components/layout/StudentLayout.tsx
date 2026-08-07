@@ -36,6 +36,7 @@ import { NotificationBell } from './NotificationBell';
 import { api } from '../../lib/api';
 import { toast } from 'sonner';
 import { useSeo } from '../public/useSeo';
+import { ThemeToggle } from '../ui/theme-toggle';
 
 const navigation = [
   { name: 'Dashboard', href: '/student', icon: LayoutDashboard },
@@ -136,7 +137,7 @@ export const StudentLayout: React.FC = () => {
         board: board.trim(),
       });
       setIsProfileIncomplete(false);
-      await refreshUser();
+      await refreshUser().catch(() => undefined);
       toast.success('Profile completed successfully! Welcome to the portal.');
     } catch (err: any) {
       toast.error(err.message || 'Failed to update profile. Please try again.');
@@ -147,17 +148,17 @@ export const StudentLayout: React.FC = () => {
 
   if (profileLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
-          <Loader2 className="h-10 w-10 animate-spin text-orange-600 mx-auto" />
-          <p className="text-gray-500 font-medium">Loading portal...</p>
+          <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto" />
+          <p className="text-muted-foreground font-medium">Loading portal...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && !isProfileIncomplete && (
         <div
@@ -170,7 +171,7 @@ export const StudentLayout: React.FC = () => {
       {!isProfileIncomplete && (
         <aside
           className={cn(
-            'fixed top-0 left-0 z-50 h-screen w-64 bg-white border-r transform transition-transform duration-300 lg:translate-x-0',
+            'fixed top-0 left-0 z-50 h-screen w-64 bg-card border-r transform transition-transform duration-300 lg:translate-x-0',
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           )}
         >
@@ -179,9 +180,9 @@ export const StudentLayout: React.FC = () => {
             <div className="flex items-center justify-between p-6 border-b">
               <div className="flex items-center space-x-2">
                 <div className="p-2 bg-gradient-to-br from-orange-600 to-pink-600 rounded-lg">
-                  <GraduationCap className="h-6 w-6 text-white" />
+                  <GraduationCap className="h-6 w-6 text-primary-foreground" />
                 </div>
-                <span className="text-xl font-bold">Student Portal</span>
+                <span className="text-xl font-bold text-foreground">Student Portal</span>
               </div>
               <Button
                 variant="ghost"
@@ -204,8 +205,8 @@ export const StudentLayout: React.FC = () => {
                     className={cn(
                       'flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors',
                       isActive
-                        ? 'bg-gradient-to-r from-orange-600 to-pink-600 text-white'
-                        : 'text-gray-700 hover:bg-gray-100'
+                        ? 'bg-gradient-to-r from-orange-600 to-pink-600 text-primary-foreground'
+                        : 'text-foreground hover:bg-accent'
                     )}
                     onClick={() => setSidebarOpen(false)}
                   >
@@ -222,7 +223,7 @@ export const StudentLayout: React.FC = () => {
       {/* Main content */}
       <div className={cn(isProfileIncomplete ? 'w-full' : 'lg:pl-64')}>
         {/* Top bar */}
-        <header className="sticky top-0 z-30 bg-white border-b">
+        <header className="sticky top-0 z-30 bg-card border-b">
           <div className="flex items-center justify-between px-4 py-4">
             {!isProfileIncomplete && (
               <Button
@@ -239,18 +240,19 @@ export const StudentLayout: React.FC = () => {
 
             <div className="flex items-center space-x-4">
               {!isProfileIncomplete && <NotificationBell />}
+              {!isProfileIncomplete && <ThemeToggle />}
 
               {/* User menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="flex items-center space-x-2">
                     <Avatar className="h-8 w-8">
-                      <AvatarFallback className="bg-gradient-to-br from-orange-600 to-pink-600 text-white">
+                      <AvatarFallback className="bg-gradient-to-br from-orange-600 to-pink-600 text-primary-foreground">
                         {(user?.name?.[0] ?? '?').toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="hidden md:block text-left">
-                      <p className="text-sm font-medium">{user?.name}</p>
+                      <p className="text-sm font-medium text-foreground">{user?.name}</p>
                       <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
                     </div>
                   </Button>
@@ -271,7 +273,7 @@ export const StudentLayout: React.FC = () => {
                       <DropdownMenuSeparator />
                     </>
                   )}
-                  <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+                  <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                     <LogOut className="mr-2 h-4 w-4" />
                     Logout
                   </DropdownMenuItem>
@@ -284,13 +286,13 @@ export const StudentLayout: React.FC = () => {
         {/* Page content / Profile Completion Form */}
         <main className="p-6 flex items-center justify-center min-h-[calc(100vh-73px)]">
           {isProfileIncomplete ? (
-            <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl border p-8 space-y-6">
+            <div className="w-full max-w-2xl bg-card rounded-2xl shadow-xl border p-8 space-y-6">
               <div className="text-center space-y-2">
-                <div className="inline-flex p-3 bg-gradient-to-br from-orange-600 to-pink-600 rounded-xl text-white mb-2">
+                <div className="inline-flex p-3 bg-gradient-to-br from-orange-600 to-pink-600 rounded-xl text-primary-foreground mb-2">
                   <User className="h-8 w-8" />
                 </div>
-                <h1 className="text-3xl font-extrabold text-gray-900">Complete Your Profile</h1>
-                <p className="text-gray-500 max-w-md mx-auto">
+                <h1 className="text-3xl font-extrabold text-foreground">Complete Your Profile</h1>
+                <p className="text-muted-foreground max-w-md mx-auto">
                   Please fill in the remaining details to access your student portal dashboard.
                 </p>
               </div>

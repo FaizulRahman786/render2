@@ -51,18 +51,18 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-background to-purple-50 p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center space-y-2">
           <div className="flex justify-center mb-4">
             <div className="p-3 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl">
-              <GraduationCap className="h-10 w-10 text-white" />
+              <GraduationCap className="h-10 w-10 text-primary-foreground" />
             </div>
           </div>
           <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             Coaching Platform
           </CardTitle>
-          <CardDescription className="text-base">
+          <CardDescription className="text-base text-muted-foreground">
             Sign in to access your dashboard
           </CardDescription>
         </CardHeader>

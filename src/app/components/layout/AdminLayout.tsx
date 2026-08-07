@@ -36,6 +36,7 @@ import { NotificationBell } from './NotificationBell';
 import { GlobalSearch } from './GlobalSearch';
 import { CommandPalette } from './CommandPalette';
 import { useSeo } from '../public/useSeo';
+import { ThemeToggle } from '../ui/theme-toggle';
 
 const navigation = [
   { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
@@ -67,7 +68,7 @@ export const AdminLayout: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <CommandPalette />
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
@@ -80,7 +81,7 @@ export const AdminLayout: React.FC = () => {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed top-0 left-0 z-50 h-screen w-64 bg-white border-r transform transition-transform duration-300 lg:translate-x-0',
+          'fixed top-0 left-0 z-50 h-screen w-64 bg-card border-r transform transition-transform duration-300 lg:translate-x-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -89,9 +90,9 @@ export const AdminLayout: React.FC = () => {
           <div className="flex items-center justify-between p-6 border-b">
             <div className="flex items-center space-x-2">
               <div className="p-2 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg">
-                <GraduationCap className="h-6 w-6 text-white" />
+                <GraduationCap className="h-6 w-6 text-primary-foreground" />
               </div>
-              <span className="text-xl font-bold">Admin Panel</span>
+              <span className="text-xl font-bold text-foreground">Admin Panel</span>
             </div>
             <Button
               variant="ghost"
@@ -114,8 +115,8 @@ export const AdminLayout: React.FC = () => {
                   className={cn(
                     'flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors',
                     isActive
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
-                      : 'text-gray-700 hover:bg-gray-100'
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-primary-foreground'
+                      : 'text-foreground hover:bg-accent'
                   )}
                   onClick={() => setSidebarOpen(false)}
                 >
@@ -131,7 +132,7 @@ export const AdminLayout: React.FC = () => {
       {/* Main content */}
       <div className="lg:pl-64">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 bg-white border-b">
+        <header className="sticky top-0 z-30 bg-card border-b">
           <div className="flex items-center justify-between px-4 py-4">
             <Button
               variant="ghost"
@@ -147,6 +148,7 @@ export const AdminLayout: React.FC = () => {
             </div>
 
             <div className="flex items-center space-x-4">
+              <ThemeToggle />
               <Button
                 variant="outline"
                 className="hidden lg:inline-flex items-center gap-2 text-muted-foreground"
@@ -154,7 +156,7 @@ export const AdminLayout: React.FC = () => {
               >
                 <Search className="h-4 w-4" />
                 Quick find
-                <kbd className="hidden xl:inline-flex px-1.5 py-0.5 text-[10px] font-semibold text-gray-400 bg-gray-100 rounded">
+                <kbd className="hidden xl:inline-flex px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground bg-accent rounded">
                   Ctrl K
                 </kbd>
               </Button>
@@ -165,12 +167,12 @@ export const AdminLayout: React.FC = () => {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="flex items-center space-x-2">
                     <Avatar className="h-8 w-8">
-                      <AvatarFallback className="bg-gradient-to-br from-blue-600 to-purple-600 text-white">
+                      <AvatarFallback className="bg-gradient-to-br from-blue-600 to-purple-600 text-primary-foreground">
                         {(user?.name?.[0] ?? '?').toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="hidden md:block text-left">
-                      <p className="text-sm font-medium">{user?.name}</p>
+                      <p className="text-sm font-medium text-foreground">{user?.name}</p>
                       <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
                     </div>
                   </Button>
@@ -183,7 +185,7 @@ export const AdminLayout: React.FC = () => {
                     Settings
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+                  <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                     <LogOut className="mr-2 h-4 w-4" />
                     Logout
                   </DropdownMenuItem>

@@ -213,6 +213,44 @@ const MOCK_USERS: ReadonlyMap<string, { role: UserRole; name: string }> = new Ma
   ['+917858062571',         { role: UserRole.STUDENT, name: 'Dev Phone Student' }],
 ]);
 
+// ── Resolved-user cache ─────────────────────────────────────────────────────
+// `resolveSupabaseAuthUser` runs on EVERY authenticated request (every API call
+// carries the access token). The full path below costs ~5 DB round-trips
+// including writes (lastLoginAt update + role-profile probe + audit insert).
+// We cache the resolved user per Supabase identity with a short TTL so the
+// heavy work happens only on a cache miss (~once per 30s per user), while a
+// blocked/inactive account or role change still propagates within the TTL.
+const CACHE_TTL_MS = 30_000;
+const CACHE_MAX_ENTRIES = 2_000;
+const resolvedUserCache = new Map<string, { user: AuthUser; expiresAt: number }>();
+
+function cacheResolvedUser(supabaseAuthId: string, user: AuthUser): void {
+  if (resolvedUserCache.size >= CACHE_MAX_ENTRIES) {
+    const oldestKey = resolvedUserCache.keys().next().value;
+    if (oldestKey !== undefined) resolvedUserCache.delete(oldestKey);
+  }
+  resolvedUserCache.set(supabaseAuthId, { user, expiresAt: Date.now() + CACHE_TTL_MS });
+}
+
+function getCachedResolvedUser(supabaseAuthId: string): AuthUser | null {
+  const entry = resolvedUserCache.get(supabaseAuthId);
+  if (!entry) return null;
+  if (entry.expiresAt < Date.now()) {
+    resolvedUserCache.delete(supabaseAuthId);
+    return null;
+  }
+  return entry.user;
+}
+
+/** Invalidate cache entries (used by tests; optionally scoped to one identity). */
+export function invalidateResolvedUserCache(supabaseAuthId?: string): void {
+  if (supabaseAuthId) {
+    resolvedUserCache.delete(supabaseAuthId);
+    return;
+  }
+  resolvedUserCache.clear();
+}
+
 export async function resolveSupabaseAuthUser(
   supabaseUser: SupabaseUser,
   metadata: { ipAddress?: string; userAgent?: string } = {},
@@ -277,6 +315,10 @@ export async function resolveSupabaseAuthUser(
   }
 
   try {
+    // Fast path: already resolved within the TTL → no DB round-trips.
+    const cached = getCachedResolvedUser(supabaseUser.id);
+    if (cached) return cached;
+
     let profile = await getLinkedProfile(supabaseUser.id);
     let appUser = profile ? await selectAppUserById(profile.userId) : null;
 
@@ -316,7 +358,9 @@ export async function resolveSupabaseAuthUser(
       userAgent: metadata.userAgent,
     });
 
-    return toAuthUser(appUser, supabaseUser);
+    const resolved = toAuthUser(appUser, supabaseUser);
+    cacheResolvedUser(supabaseUser.id, resolved);
+    return resolved;
   } catch (error) {
     await logAuthEvent({
       supabaseAuthId: supabaseUser.id,

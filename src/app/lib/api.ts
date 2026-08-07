@@ -10,18 +10,36 @@ const DEFAULT_TIMEOUT = 60_000; // 60 seconds
 const MAX_RETRIES = 3;
 
 let authTokenCache: { token: string; expiresAt: number } | null = null;
+let tokenFetchInFlight: Promise<string | null> | null = null;
+
+export function invalidateAuthTokenCache(): void {
+  authTokenCache = null;
+  tokenFetchInFlight = null;
+}
 
 export async function getAuthToken(): Promise<string | null> {
   const now = Date.now();
   if (authTokenCache && authTokenCache.expiresAt > now + 60_000) {
     return authTokenCache.token;
   }
-  const token = await getSupabaseAccessToken();
-  if (token) {
-    // Supabase tokens typically last 1 hour, cache for 50 minutes
-    authTokenCache = { token, expiresAt: now + 50 * 60_000 };
+  // Single-flight: concurrent callers share one token fetch instead of each
+  // hitting the Supabase session store.
+  if (!tokenFetchInFlight) {
+    tokenFetchInFlight = getSupabaseAccessToken()
+      .then((token) => {
+        if (token) {
+          // Supabase tokens typically last 1 hour, cache for 50 minutes
+          authTokenCache = { token, expiresAt: now + 50 * 60_000 };
+        } else {
+          authTokenCache = null;
+        }
+        return token;
+      })
+      .finally(() => {
+        tokenFetchInFlight = null;
+      });
   }
-  return token;
+  return tokenFetchInFlight;
 }
 
 async function sleep(ms: number) {
@@ -35,6 +53,9 @@ async function request<T>(
   const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES, ...fetchOptions } = options;
   const maxRetries = retries;
   let delay = 1000;
+  // A 401 may mean the cached access token went stale after a background
+  // refresh — invalidate and retry ONCE with a freshly fetched token.
+  let retriedOn401 = false;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     const controller = new AbortController();
@@ -61,6 +82,12 @@ async function request<T>(
       const data = contentType.includes('application/json') ? await res.json() : await res.text();
 
       if (!res.ok) {
+        // Stale-token recovery: clear the cache, refetch, retry exactly once.
+        if (res.status === 401 && !retriedOn401) {
+          retriedOn401 = true;
+          invalidateAuthTokenCache();
+          continue;
+        }
         // Retry only on transient server errors. 429 is deliberately NOT
         // retried: the server has already decided this client is making too
         // many requests, and retrying only deepens the penalty window.
@@ -72,7 +99,9 @@ async function request<T>(
           continue;
         }
         const message = typeof data === 'string' ? data : (data.error || data.message || 'Request failed');
-        throw new Error(message);
+        const err: any = new Error(message);
+        err.status = res.status;
+        throw err;
       }
 
       return (typeof data === 'string' ? { message: data } : data) as T;
@@ -86,12 +115,16 @@ async function request<T>(
         continue;
       }
       if (error.name === 'AbortError') {
-        throw new Error(`Request timeout after ${timeout}ms`);
+        const err: any = new Error(`Request timeout after ${timeout}ms`);
+        err.status = 408;
+        throw err;
       }
       throw error;
     }
   }
-  throw new Error('Request failed after maximum retries');
+  const err: any = new Error('Request failed after maximum retries');
+  err.status = 0;
+  throw err;
 }
 
 export async function uploadFile(
@@ -99,21 +132,36 @@ export async function uploadFile(
   endpoint = '/upload',
   options: { timeout?: number; onProgress?: (progress: number) => void } = {}
 ): Promise<{ fileUrl: string; fileName: string; fileSize: number; mimeType: string }> {
-  const token = await getAuthToken();
-  const form = new FormData();
-  form.append('file', file);
-  
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), options.timeout || DEFAULT_TIMEOUT);
 
   try {
-    const res = await fetch(`${BASE_URL}${endpoint}`, {
+    let token = await getAuthToken();
+    let form = new FormData();
+    form.append('file', file);
+
+    let res = await fetch(`${BASE_URL}${endpoint}`, {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: form,
       credentials: 'include',
       signal: controller.signal,
     });
+
+    if (res.status === 401) {
+      // Stale cached token — invalidate and retry once with a fresh one.
+      invalidateAuthTokenCache();
+      token = await getAuthToken();
+      form = new FormData();
+      form.append('file', file);
+      res = await fetch(`${BASE_URL}${endpoint}`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+        credentials: 'include',
+        signal: controller.signal,
+      });
+    }
     clearTimeout(timeoutId);
 
     const contentType = res.headers.get('content-type') || '';

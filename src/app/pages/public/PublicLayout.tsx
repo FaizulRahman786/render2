@@ -4,6 +4,7 @@ import { Facebook, Instagram, Twitter, Youtube, Linkedin, Mail, Phone, MapPin, M
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchPublicConfig, fetchPublicStatus, previewHref, Institute, NavItem } from './publicData';
 import { useSeo, applySeoDefaults } from '../../components/public/useSeo';
+import { ThemeToggle } from '../../components/ui/theme-toggle';
 
 // FALLBACK_NAV is used only when the site profile is still loading or the
 // /config fetch fails — the live menu is always what the admin configured.
@@ -82,13 +83,13 @@ export const PublicLayout: React.FC<{ children: React.ReactNode }> = ({ children
 
   if (showMaintenance) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center mb-6 text-3xl">🛠️</div>
-        <h1 className="text-3xl font-bold text-gray-900">We'll be right back</h1>
-        <p className="text-gray-500 mt-3 max-w-md">
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mb-6 text-3xl">🛠️</div>
+        <h1 className="text-3xl font-bold text-foreground">We'll be right back</h1>
+        <p className="text-muted-foreground mt-3 max-w-md">
           The website is currently under scheduled maintenance. Please check back soon.
         </p>
-        <Link to="/login" className="mt-6 text-sm font-medium text-blue-600 hover:underline">Staff sign in</Link>
+        <Link to="/login" className="mt-6 text-sm font-medium text-primary hover:underline">Staff sign in</Link>
       </div>
     );
   }
@@ -101,15 +102,15 @@ export const PublicLayout: React.FC<{ children: React.ReactNode }> = ({ children
   const topLevel = nav.filter((n) => !n.parentId);
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-gray-200">
+    <div className="min-h-screen bg-background flex flex-col">
+      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <Link to={previewHref('/')} className="flex items-center gap-2.5 shrink-0">
               <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-600 to-blue-500 flex items-center justify-center shadow-sm">
-                <GraduationCap className="h-5 w-5 text-white" />
+                <GraduationCap className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="font-bold text-lg text-gray-900 leading-tight">{name}</span>
+              <span className="font-bold text-lg text-foreground leading-tight">{name}</span>
             </Link>
 
             <nav className="hidden md:flex items-center gap-0.5 overflow-x-auto max-w-2xl">
@@ -119,7 +120,7 @@ export const PublicLayout: React.FC<{ children: React.ReactNode }> = ({ children
                   to={previewHref(item.href)}
                   target={item.target === '_blank' ? '_blank' : undefined}
                   rel={item.target === '_blank' ? 'noreferrer' : undefined}
-                  className="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-blue-700 hover:bg-blue-50 transition-colors whitespace-nowrap"
+                  className="px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-primary hover:bg-accent transition-colors whitespace-nowrap"
                 >
                   {item.label}
                 </NavLink>
@@ -127,16 +128,17 @@ export const PublicLayout: React.FC<{ children: React.ReactNode }> = ({ children
             </nav>
 
             <div className="flex items-center gap-3">
+              <ThemeToggle />
               <Link
                 to="/login"
-                className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+                className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors shadow-sm"
               >
                 Staff Login
               </Link>
               <button
                 type="button"
                 onClick={() => setMenuOpen((v) => !v)}
-                className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100"
+                className="md:hidden p-2 rounded-lg text-muted-foreground hover:bg-accent"
                 aria-label="Toggle menu"
               >
                 {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -146,7 +148,7 @@ export const PublicLayout: React.FC<{ children: React.ReactNode }> = ({ children
         </div>
 
         {menuOpen && (
-          <nav className="md:hidden border-t border-gray-100 bg-white px-4 py-3 space-y-1 max-h-[70vh] overflow-y-auto">
+          <nav className="md:hidden border-t border-border bg-background px-4 py-3 space-y-1 max-h-[70vh] overflow-y-auto">
             {topLevel.map((item) => (
               <Link
                 key={item.id}
@@ -154,12 +156,12 @@ export const PublicLayout: React.FC<{ children: React.ReactNode }> = ({ children
                 target={item.target === '_blank' ? '_blank' : undefined}
                 rel={item.target === '_blank' ? 'noreferrer' : undefined}
                 onClick={() => setMenuOpen(false)}
-                className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-700"
+                className="block px-3 py-2 rounded-lg text-sm font-medium text-foreground hover:bg-accent hover:text-primary"
               >
                 {item.label}
               </Link>
             ))}
-            <Link to="/login" onClick={() => setMenuOpen(false)} className="block px-3 py-2 rounded-lg text-sm font-semibold text-blue-700 hover:bg-blue-50">
+            <Link to="/login" onClick={() => setMenuOpen(false)} className="block px-3 py-2 rounded-lg text-sm font-semibold text-primary hover:bg-accent">
               Staff Login
             </Link>
           </nav>
@@ -168,51 +170,51 @@ export const PublicLayout: React.FC<{ children: React.ReactNode }> = ({ children
 
       <main className="flex-1">{children}</main>
 
-      <footer className="bg-gray-950 text-gray-300 mt-20">
+      <footer className="bg-muted text-muted-foreground mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 grid grid-cols-1 md:grid-cols-3 gap-10">
           <div>
             <div className="flex items-center gap-2.5 mb-4">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-blue-500 flex items-center justify-center">
-                <GraduationCap className="h-4 w-4 text-white" />
+                <GraduationCap className="h-4 w-4 text-primary-foreground" />
               </div>
-              <span className="font-bold text-lg text-white">{name}</span>
+              <span className="font-bold text-lg text-foreground">{name}</span>
             </div>
-            <p className="text-sm text-gray-400 leading-relaxed">
+            <p className="text-sm text-muted-foreground leading-relaxed">
               {(status.footer && (status.footer as any).about) || 'Empowering students to achieve academic excellence.'}
             </p>
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">Quick Links</h3>
+            <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-4">Quick Links</h3>
             <ul className="space-y-2.5 text-sm">
               {topLevel.map((item) => (
                 <li key={item.id}>
-                  <Link to={previewHref(item.href)} className="hover:text-blue-400 transition-colors">{item.label}</Link>
+                  <Link to={previewHref(item.href)} className="hover:text-primary transition-colors">{item.label}</Link>
                 </li>
               ))}
-              <li><Link to="/login" className="hover:text-blue-400 transition-colors">Staff Login</Link></li>
+              <li><Link to="/login" className="hover:text-primary transition-colors">Staff Login</Link></li>
             </ul>
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">Contact</h3>
+            <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-4">Contact</h3>
             <ul className="space-y-3 text-sm">
               {institute?.address && (
                 <li className="flex items-start gap-2.5">
-                  <MapPin className="h-4 w-4 mt-0.5 text-blue-400 shrink-0" />
+                  <MapPin className="h-4 w-4 mt-0.5 text-primary shrink-0" />
                   <span>{institute.address}</span>
                 </li>
               )}
               {institute?.phone && (
                 <li className="flex items-center gap-2.5">
-                  <Phone className="h-4 w-4 text-blue-400 shrink-0" />
-                  <a href={`tel:${institute.phone}`} className="hover:text-blue-400">{institute.phone}</a>
+                  <Phone className="h-4 w-4 text-primary shrink-0" />
+                  <a href={`tel:${institute.phone}`} className="hover:text-primary">{institute.phone}</a>
                 </li>
               )}
               {institute?.email && (
                 <li className="flex items-center gap-2.5">
-                  <Mail className="h-4 w-4 text-blue-400 shrink-0" />
-                  <a href={`mailto:${institute.email}`} className="hover:text-blue-400">{institute.email}</a>
+                  <Mail className="h-4 w-4 text-primary shrink-0" />
+                  <a href={`mailto:${institute.email}`} className="hover:text-primary">{institute.email}</a>
                 </li>
               )}
             </ul>
@@ -222,8 +224,8 @@ export const PublicLayout: React.FC<{ children: React.ReactNode }> = ({ children
                   if (!url) return null;
                   const Icon = SOCIAL_ICONS[key] || Home;
                   return (
-                    <a key={key} href={url} target="_blank" rel="noreferrer" aria-label={key} className="w-8 h-8 rounded-full bg-gray-800 hover:bg-blue-600 flex items-center justify-center transition-colors">
-                      <Icon className="h-4 w-4" />
+                    <a key={key} href={url} target="_blank" rel="noreferrer" aria-label={key} className="w-8 h-8 rounded-full bg-muted hover:bg-primary flex items-center justify-center transition-colors">
+                      <Icon className="h-4 w-4 text-muted-foreground" />
                     </a>
                   );
                 })}
@@ -231,8 +233,8 @@ export const PublicLayout: React.FC<{ children: React.ReactNode }> = ({ children
             )}
           </div>
         </div>
-        <div className="border-t border-gray-800">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-gray-500">
+        <div className="border-t border-border">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
             <span>© {new Date().getFullYear()} {name}. All rights reserved.</span>
             <span>Powered by our learning platform</span>
           </div>

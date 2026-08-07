@@ -25,6 +25,9 @@ export const GalleryPage: React.FC = () => {
 
   const categories = [...new Set([...items.map((i) => i.category), ...Object.keys(CATEGORY_LABEL)])].filter(Boolean);
 
+  const activeBtn = 'bg-primary text-primary-foreground shadow-sm';
+  const inactiveBtn = 'bg-muted text-muted-foreground hover:bg-muted/80';
+
   return (
     <div>
       <PageHero title="Gallery" subtitle="Moments from our campus, classrooms and celebrations." badge="Gallery" />
@@ -33,7 +36,7 @@ export const GalleryPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setCategory('')}
-            className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${category === '' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${category === '' ? activeBtn : inactiveBtn}`}
           >
             All
           </button>
@@ -42,7 +45,7 @@ export const GalleryPage: React.FC = () => {
               key={c}
               type="button"
               onClick={() => setCategory(c)}
-              className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${category === c ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${category === c ? activeBtn : inactiveBtn}`}
             >
               {CATEGORY_LABEL[c] || c}
             </button>
@@ -60,7 +63,7 @@ export const GalleryPage: React.FC = () => {
                 key={item.id}
                 type="button"
                 onClick={() => setLightbox(item)}
-                className="group relative overflow-hidden rounded-2xl aspect-square focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="group relative overflow-hidden rounded-2xl aspect-square focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <img
                   src={item.imageUrl}

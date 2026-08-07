@@ -31,7 +31,7 @@ export const CustomPageView: React.FC<{ slug: string }> = ({ slug }) => {
   });
 
   if (!loaded) {
-    return <div className="min-h-[60vh] flex items-center justify-center"><div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600" /></div>;
+    return <div className="min-h-[60vh] flex items-center justify-center"><div className="h-10 w-10 animate-spin rounded-full border-4 border-border border-t-primary" /></div>;
   }
 
   if (!meta) {
@@ -46,7 +46,7 @@ export const CustomPageView: React.FC<{ slug: string }> = ({ slug }) => {
       title={meta.name}
       sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
       referrerPolicy="strict-origin-when-cross-origin"
-      className="w-full h-[85vh] border-0 bg-white"
+      className="w-full h-[85vh] border-0 bg-background"
     />
   );
 };

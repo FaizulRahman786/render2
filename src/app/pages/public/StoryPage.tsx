@@ -65,7 +65,7 @@ export const StoryPage: React.FC = () => {
                   key={p.id}
                   type="button"
                   onClick={() => select(p.slug)}
-                  className={`shrink-0 text-left px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${page?.slug === p.slug ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                  className={`shrink-0 text-left px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${page?.slug === p.slug ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
                 >
                   {p.title || p.slug}
                 </button>
@@ -76,8 +76,8 @@ export const StoryPage: React.FC = () => {
           <div className="min-w-0">
             {page ? (
               <>
-                <h1 className="text-3xl font-extrabold text-gray-900">{page.title || page.slug}</h1>
-                {page.subtitle && <p className="mt-2 text-gray-500">{page.subtitle}</p>}
+                <h1 className="text-3xl font-extrabold text-foreground">{page.title || page.slug}</h1>
+                {page.subtitle && <p className="mt-2 text-muted-foreground">{page.subtitle}</p>}
                 {page.coverImage && <img src={page.coverImage} alt={page.title || ''} className="mt-6 w-full h-64 object-cover rounded-3xl" />}
                 <div className="mt-8 space-y-8">
                   <RenderBlocks blocks={page.content} />
@@ -86,7 +86,7 @@ export const StoryPage: React.FC = () => {
             ) : pages.length > 0 ? null : (
               <EmptyState title="Story coming soon" />
             )}
-            <Link to="/contact" className="mt-10 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors">
+            <Link to="/contact" className="mt-10 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
               Talk to us <ArrowRight className="h-4 w-4" />
             </Link>
           </div>

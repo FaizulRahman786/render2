@@ -66,24 +66,24 @@ export const FeesPage: React.FC = () => {
           <div className="space-y-10">
             {sessions.map(([session, rows]) => (
               <div key={session}>
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Session {session}</h2>
-                <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
+                <h2 className="text-xl font-bold text-foreground mb-4">Session {session}</h2>
+                <div className="overflow-x-auto rounded-2xl border border-border shadow-sm">
                   <table className="w-full text-sm min-w-[720px]">
                     <thead>
-                      <tr className="bg-gray-50 text-left text-gray-500 uppercase text-xs tracking-wider">
+                      <tr className="bg-muted text-left text-muted-foreground uppercase text-xs tracking-wider">
                         <th className="px-5 py-3.5 font-semibold">Class / program</th>
                         {FEE_COLUMNS.map((c) => <th key={c.key} className="px-4 py-3.5 font-semibold text-right">{c.label}</th>)}
                         <th className="px-5 py-3.5 font-semibold text-right">Total</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-border">
                       {rows.map((f) => (
-                        <tr key={f.id} className="hover:bg-blue-50/40 transition-colors">
-                          <td className="px-5 py-4 font-semibold text-gray-900">{f.classLevel}</td>
+                        <tr key={f.id} className="hover:bg-accent/50 transition-colors">
+                          <td className="px-5 py-4 font-semibold text-foreground">{f.classLevel}</td>
                           {FEE_COLUMNS.map((c) => (
-                            <td key={c.key} className="px-4 py-4 text-right text-gray-600">{formatMoney(f[c.key]) || '—'}</td>
+                            <td key={c.key} className="px-4 py-4 text-right text-muted-foreground">{formatMoney(f[c.key]) || '—'}</td>
                           ))}
-                          <td className="px-5 py-4 text-right font-bold text-gray-900">{formatMoney(f.totalFee) || '—'}</td>
+                          <td className="px-5 py-4 text-right font-bold text-foreground">{formatMoney(f.totalFee) || '—'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -93,9 +93,9 @@ export const FeesPage: React.FC = () => {
                   <div className="mt-4 space-y-2">
                     {rows.map((f) => (
                       <div key={f.id} className="text-sm">
-                        {f.discountInfo && <p className="text-gray-600"><span className="font-semibold text-gray-900">{f.classLevel}:</span> {f.discountInfo}</p>}
-                        {f.paymentSchedule && <p className="text-gray-500 mt-0.5">Payments: {f.paymentSchedule}</p>}
-                        {f.notes && <p className="text-gray-500 mt-0.5">{f.notes}</p>}
+                        {f.discountInfo && <p className="text-muted-foreground"><span className="font-semibold text-foreground">{f.classLevel}:</span> {f.discountInfo}</p>}
+                        {f.paymentSchedule && <p className="text-muted-foreground mt-0.5">Payments: {f.paymentSchedule}</p>}
+                        {f.notes && <p className="text-muted-foreground mt-0.5">{f.notes}</p>}
                       </div>
                     ))}
                   </div>

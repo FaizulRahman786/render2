@@ -422,7 +422,7 @@ console.log('8) Uploads & file security');
 
   // Submission upload: student stores under private path.
   const subForm = new FormData();
-  subForm.append('file', new Blob(['homework text'], { type: 'application/pdf' }), 'hw.pdf');
+  subForm.append('file', new Blob(['%PDF-1.4 homework text'], { type: 'application/pdf' }), 'hw.pdf');
   const usub = await api('POST', '/api/upload/submission', { token: T.student, form: subForm });
   check('student uploads submission', successBody(usub), true, errText(usub));
   const privateUrl = usub.json?.data?.fileUrl;

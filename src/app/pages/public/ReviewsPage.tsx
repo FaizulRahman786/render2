@@ -60,7 +60,7 @@ export const ReviewsPage: React.FC = () => {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid gap-8 lg:grid-cols-[1.1fr_1fr]">
           <div>
-            <h2 className="text-lg font-bold text-gray-900 mb-4">What people say</h2>
+            <h2 className="text-lg font-bold text-foreground mb-4">What people say</h2>
             {loading ? (
               <LoadingCards count={3} />
             ) : items.length === 0 ? (
@@ -68,20 +68,20 @@ export const ReviewsPage: React.FC = () => {
             ) : (
               <div className="space-y-4">
                 {items.map((r) => (
-                  <article key={r.id} className="rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <article key={r.id} className="rounded-2xl border border-border shadow-sm p-5 bg-card">
                     <div className="flex items-center justify-between gap-3 flex-wrap">
                       <div>
-                        <p className="font-bold text-gray-900">{r.name || 'Anonymous'}</p>
-                        {r.relationship && <p className="text-xs text-gray-500 capitalize">{r.relationship}</p>}
+                        <p className="font-bold text-foreground">{r.name || 'Anonymous'}</p>
+                        {r.relationship && <p className="text-xs text-muted-foreground capitalize">{r.relationship}</p>}
                       </div>
-                      <span className="text-xs text-gray-400">{r.createdAt ? formatDate(r.createdAt) : ''}</span>
+                      <span className="text-xs text-muted-foreground">{r.createdAt ? formatDate(r.createdAt) : ''}</span>
                     </div>
                     <div className="mt-2 flex gap-0.5">
                       {[1, 2, 3, 4, 5].map((n) => (
-                        <Star key={n} className={`h-4 w-4 ${n <= r.rating ? 'text-amber-400 fill-amber-400' : 'text-gray-200'}`} />
+                        <Star key={n} className={`h-4 w-4 ${n <= r.rating ? 'text-amber-400 fill-amber-400' : 'text-muted-foreground'}`} />
                       ))}
                     </div>
-                    <p className="mt-2 text-sm text-gray-600 leading-relaxed">{r.review}</p>
+                    <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{r.review}</p>
                   </article>
                 ))}
               </div>
@@ -89,20 +89,20 @@ export const ReviewsPage: React.FC = () => {
           </div>
 
           <div className="lg:sticky lg:top-24 self-start">
-            <form onSubmit={submit} className="rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8 bg-white">
-              <h2 className="text-lg font-bold text-gray-900">Share your experience</h2>
-              <p className="mt-1 text-sm text-gray-500">Your feedback is moderated before publishing.</p>
+            <form onSubmit={submit} className="rounded-2xl border border-border shadow-sm p-6 sm:p-8 bg-card">
+              <h2 className="text-lg font-bold text-foreground">Share your experience</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Your feedback is moderated before publishing.</p>
 
               <div className="mt-6 grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5" htmlFor="rev-name">Name *</label>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5" htmlFor="rev-name">Name *</label>
                   <input id="rev-name" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" required
-                    className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    className="w-full rounded-xl border border-input bg-input-background px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5" htmlFor="rev-relationship">I am a…</label>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5" htmlFor="rev-relationship">I am a…</label>
                   <select id="rev-relationship" value={relationship} onChange={(e) => setRelationship(e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    className="w-full rounded-xl border border-input bg-input-background px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
                     {['student', 'parent', 'teacher', 'alumni', 'other'].map((r) => (
                       <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>
                     ))}
@@ -111,33 +111,33 @@ export const ReviewsPage: React.FC = () => {
               </div>
 
               <div className="mt-5">
-                <span className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">Your rating</span>
+                <span className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Your rating</span>
                 <div className="flex gap-1.5">
                   {[1, 2, 3, 4, 5].map((n) => (
                     <button key={n} type="button" onClick={() => setRating(n)} onMouseEnter={() => setHover(n)} onMouseLeave={() => setHover(0)} aria-label={`${n} star${n > 1 ? 's' : ''}`}>
-                      <Star className={`h-7 w-7 transition-colors ${(hover || rating) >= n ? 'text-amber-400 fill-amber-400' : 'text-gray-200'}`} />
+                      <Star className={`h-7 w-7 transition-colors ${(hover || rating) >= n ? 'text-amber-400 fill-amber-400' : 'text-muted-foreground'}`} />
                     </button>
                   ))}
-                  <span className="ml-2 text-sm text-gray-500 self-center">{STAR_MESSAGES[hover || rating]}</span>
+                  <span className="ml-2 text-sm text-muted-foreground self-center">{STAR_MESSAGES[hover || rating]}</span>
                 </div>
               </div>
 
               <div className="mt-5">
-                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5" htmlFor="rev-comment">Your review</label>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5" htmlFor="rev-comment">Your review</label>
                 <textarea id="rev-comment" value={comment} onChange={(e) => setComment(e.target.value)} rows={4} required placeholder="Tell us about your experience…"
-                  className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="w-full rounded-xl border border-input bg-input-background px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
               </div>
 
-              <label className="mt-4 flex items-start gap-2.5 cursor-pointer text-sm text-gray-600">
+              <label className="mt-4 flex items-start gap-2.5 cursor-pointer text-sm text-muted-foreground">
                 <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded accent-blue-600" />
+                  className="mt-0.5 h-4 w-4 rounded accent-primary" />
                 <span>
-                  I consent to this review being published publicly. <span className="inline-flex items-center gap-1 text-gray-400"><ShieldCheck className="h-3.5 w-3.5" /> no personal data beyond what I share</span>
+                  I consent to this review being published publicly. <span className="inline-flex items-center gap-1 text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5" /> no personal data beyond what I share</span>
                 </span>
               </label>
 
               {message && (
-                <p className={`mt-4 text-sm rounded-xl px-4 py-3 ${message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
+                <p className={`mt-4 text-sm rounded-xl px-4 py-3 ${message.type === 'success' ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400'}`}>
                   {message.text}
                 </p>
               )}
@@ -145,7 +145,7 @@ export const ReviewsPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={submitting || !name.trim() || !comment.trim() || !consent}
-                className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? 'Submitting…' : 'Submit review'} <Send className="h-4 w-4" />
               </button>

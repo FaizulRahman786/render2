@@ -64,14 +64,15 @@ export default defineConfig({
             '@radix-ui/react-popover', '@radix-ui/react-hover-card', '@radix-ui/react-progress',
             '@radix-ui/react-scroll-area', '@radix-ui/react-collapsible', '@radix-ui/react-aspect-ratio',
             '@radix-ui/react-alert-dialog', '@radix-ui/react-context-menu', '@radix-ui/react-menubar',
-            '@radix-ui/react-navigation-menu', '@radix-ui/react-accordion', '@radix-ui/react-avatar',
+            '@radix-ui/react-navigation-menu', '@radix-ui/react-accordion',
             '@radix-ui/react-slider', '@radix-ui/react-toggle', '@radix-ui/react-toggle-group',
+            'cmdk', 'vaul',
           ],
           'vendor-forms': ['react-hook-form', '@hookform/resolvers', 'zod'],
           'vendor-charts': ['recharts', 'embla-carousel-react'],
           'vendor-utils': ['clsx', 'tailwind-merge', 'class-variance-authority', 'date-fns', 'lucide-react'],
           'vendor-supabase': ['@supabase/supabase-js'],
-          'vendor-other': ['motion', 'sonner', 'cmdk', 'vaul', 'input-otp', 'react-resizable-panels', 'react-dnd', 'react-dnd-html5-backend', 'canvas-confetti', 'react-popper', '@popperjs/core'],
+          'vendor-other': ['motion', 'sonner', 'input-otp', 'react-resizable-panels', 'react-dnd', 'react-dnd-html5-backend', 'canvas-confetti', 'react-popper', '@popperjs/core'],
 
           // Portal chunks - loaded on demand
           'portal-admin': [

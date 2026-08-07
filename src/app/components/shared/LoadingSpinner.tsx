@@ -17,7 +17,7 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ size = 'md', cla
     <div className={cn('flex items-center justify-center', className)}>
       <div
         className={cn(
-          'animate-spin rounded-full border-4 border-gray-200 border-t-blue-600',
+          'animate-spin rounded-full border-4 border-border border-t-primary',
           sizeClasses[size]
         )}
       />
@@ -27,9 +27,9 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ size = 'md', cla
 
 export const LoadingScreen: React.FC<{ message?: string }> = ({ message }) => {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background">
       <LoadingSpinner size="lg" />
-      {message && <p className="mt-4 text-gray-600">{message}</p>}
+      {message && <p className="mt-4 text-muted-foreground">{message}</p>}
     </div>
   );
 };
@@ -38,7 +38,7 @@ export const LoadingSkeleton: React.FC<{ className?: string }> = ({ className })
   return (
     <div
       className={cn(
-        'animate-pulse rounded-md bg-gray-200',
+        'animate-pulse rounded-md bg-muted',
         className
       )}
     />

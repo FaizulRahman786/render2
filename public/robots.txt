@@ -8,4 +8,5 @@ Disallow: /admin
 Disallow: /teacher
 Disallow: /student
 
-Sitemap: https://your-domain.example/sitemap.xml
+Sitemap: https://second-tan-theta.vercel.app/sitemap.xml
+

@@ -5,6 +5,8 @@
 import type { Request, Response, NextFunction } from 'express';
 import { getSupabaseClient } from '../lib/supabase.js';
 import { resolveSupabaseAuthUser } from '../services/authService.js';
+import { ApiError } from './error.js';
+import { logger } from '../lib/logger.js';
 import type { AuthUser } from '../../../../packages/shared-types/src/index';
 import { UserRole } from '../../../../packages/shared-types/src/index.js';
 import { config } from '../config/env.js';
@@ -32,6 +34,17 @@ const MOCK_USERS: ReadonlyMap<string, AuthUser> = new Map([
   ['mock-token-student2@demo.com',{ id: '00000000-0000-4000-8000-000000000004', name: 'Demo Student 2', email: 'student2@demo.com', role: UserRole.STUDENT, supabaseAuthId: 'mock-token-student2@demo.com', phone: '+919999999995', profileImage: undefined }],
 ]);
 
+// GoTrue returns this error class for network/5xx failures. Distinguishing it
+// from a genuine 401 is what prevents transient outages from logging users out.
+function isSupabaseTransientError(error: any): boolean {
+  if (!error) return false;
+  const status = Number(error.status);
+  if (status >= 500) return true;
+  if (status >= 400 && status <= 499) return false;
+  // No HTTP status → transport-level failure (DNS, connect, CORS, timeout).
+  return true;
+}
+
 export async function authenticate(
   req: Request,
   res: Response,
@@ -48,10 +61,10 @@ export async function authenticate(
       return;
     }
 
-// E2E test mock authentication — bypasses Supabase entirely
+    // E2E test mock authentication — bypasses Supabase entirely
     if (config.enableAuthMock && MOCK_USERS.has(token)) {
       if (config.nodeEnv === 'production') {
-        console.error('[AUTH] SECURITY: enableAuthMock=true in production — blocking request');
+        logger.error('[AUTH] SECURITY: enableAuthMock=true in production — blocking request');
         res.status(500).json({ success: false, error: 'Authentication misconfiguration' });
         return;
       }
@@ -62,6 +75,13 @@ export async function authenticate(
 
     const { data, error } = await getSupabaseClient().auth.getUser(token);
     if (error || !data.user) {
+      if (isSupabaseTransientError(error)) {
+        res.status(503).json({
+          success: false,
+          error: 'Authentication service temporarily unavailable. Please try again.',
+        });
+        return;
+      }
       res.status(401).json({
         success: false,
         error: 'Invalid or expired token',
@@ -75,12 +95,16 @@ export async function authenticate(
     });
     next();
   } catch (error: any) {
-    console.error('[AUTH ERROR]', error);
-    const statusCode = typeof error?.statusCode === 'number' ? error.statusCode : 401;
-    res.status(statusCode).json({
-      success: false,
-      error: error?.message || 'Authentication failed',
-    });
+    // Deliberate auth failures (ApiError) keep their exact status + safe message.
+    if (error instanceof ApiError) {
+      res.status(error.statusCode).json({ success: false, error: error.message });
+      return;
+    }
+    // Anything else (DB driver failures, unexpected bugs) is delegated to the
+    // central error handler so internal details are never exposed to clients
+    // and unexpected errors surface as sanitized 500s, not misleading 401s.
+    logger.error({ err: error, reqId: req.id }, 'Unexpected authentication failure');
+    next(error);
   }
 }
 

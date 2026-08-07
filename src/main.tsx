@@ -39,7 +39,6 @@ if (import.meta.env.VITE_SENTRY_DSN) {
       }
       return event;
     },
-    enableTracing: true,
   });
 }
 

@@ -78,37 +78,10 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-// Rate limiting
-app.use('/api/admin', rateLimit({
-  windowMs: 60_000,
-  max: 200,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, error: 'Too many admin requests. Please try again later.' },
-}));
-app.use('/api/auth', rateLimit({
-  windowMs: 15 * 60_000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, error: 'Too many authentication attempts. Please try again later.' },
-}));
-app.use('/api/auth/refresh', rateLimit({
-  windowMs: 60 * 60_000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, error: 'Too many token refresh attempts. Please try again later.' },
-}));
-app.use('/api/upload', rateLimit({
-  windowMs: 60_000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, error: 'Too many upload attempts. Please try again later.' },
-}));
-
 const allowedOrigins = (config.corsOrigin || '').split(',').map((origin) => origin.trim()).filter(Boolean);
+// CORS runs BEFORE rate limiting so cross-origin OPTIONS preflights are answered
+// by the `cors` middleware and never consume the rate-limit budget. The auth
+// limiters below additionally skip OPTIONS as defense-in-depth.
 app.use(cors({
   origin: (origin, callback) => {
     if (config.nodeEnv !== 'production') {
@@ -141,6 +114,63 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
 }));
+
+// Rate limiting
+// Each limit is keyed per-IP (honoring `trust proxy`). Limits are sized so that
+// legitimate application behavior NEVER trips them, while open abuse is still
+// throttled. The auth routes are monitored independently because:
+//   GET  /api/auth/me  — called on page load, after sign-in and on token
+//                        refresh events. The frontend de-duplicates these, so a
+//                        normal session makes ~2–4 calls per 5 minutes. The
+//                        window here (60 / 5 min) still bounds a misbehaving
+//                        client without ever locking out a real user.
+//   POST /api/auth/logout — rare per user; limit guards token-flooding.
+//   PUT  /api/auth/profile — rare per user; limit guards write abuse.
+// A blanket 5-per-15-minute limit over the whole prefix was rejected because it
+// turned legitimate `/api/auth/me` traffic into a 429 lockout (previously
+// triggering ~4 HTTP 429s after exactly 2 requests in this environment).
+const skipPreflight = (req: { method: string }) => req.method === 'OPTIONS';
+app.use('/api/auth/me', rateLimit({
+  windowMs: 5 * 60_000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipPreflight,
+  message: { success: false, error: 'Too many session checks. Please try again later.' },
+}));
+app.use('/api/auth/logout', rateLimit({
+  windowMs: 15 * 60_000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipPreflight,
+  message: { success: false, error: 'Too many logout attempts. Please try again later.' },
+}));
+app.use('/api/auth/profile', rateLimit({
+  windowMs: 15 * 60_000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipPreflight,
+  message: { success: false, error: 'Too many profile updates. Please try again later.' },
+}));
+app.use('/api/admin', rateLimit({
+  windowMs: 60_000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipPreflight,
+  message: { success: false, error: 'Too many admin requests. Please try again later.' },
+}));
+const skipNonPost = (req: { method: string }) => req.method !== 'POST';
+app.use('/api/upload', rateLimit({
+  windowMs: 60_000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipNonPost,
+  message: { success: false, error: 'Too many upload attempts. Please try again later.' },
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -160,8 +190,6 @@ app.use((err: Error, req: Request, _res: Response, next: NextFunction) => {
   logger.error({ err, reqId: req.id, method: req.method, url: req.url }, 'Global error');
   next(err);
 });
-
-app.use('/api', routes);
 
 if (config.nodeEnv === 'development') {
   app.use((req, _res, next) => {

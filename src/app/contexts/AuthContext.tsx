@@ -21,13 +21,51 @@ function redirectForRole(user: User) {
   }
 }
 
+// Statuses that prove this identity is definitively not authenticated on the
+// backend. Anything else (429, 5xx, network, timeout) is a TRANSIENT failure
+// and must never be treated as "logged out".
+function isDefinitiveAuthFailure(err: any): boolean {
+  const status = err?.status;
+  return status === 401 || status === 404;
+}
+
+function isTransientAuthFailure(err: any): boolean {
+  const status = err?.status;
+  return status === undefined || status === 0 || status === 408 || status === 429 || status >= 500;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// A burst of callers (signIn + the SIGNED_IN event that follows it) must not
+// each trigger their own /api/auth/me round-trip.
+const REFRESH_DEDUPE_MS = 2000;
+// After a transient failure, short-circuit repeat callers so a degraded
+// backend cannot turn into a request storm.
+const FAILURE_COOLDOWN_MS = 5000;
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const refreshInFlight = useRef<{ promise: Promise<User | null>; resolve: (u: User | null) => void } | null>(null);
+  const lastRefresh = useRef<{ at: number; value: User | null; failed: boolean } | null>(null);
 
-  const refreshUser = useCallback(async () => {
+  const refreshUser = useCallback(async (): Promise<User | null> => {
+    // Dedupe: reuse the result of a very recent refresh instead of re-hitting
+    // /api/auth/me (e.g. signIn + the SIGNED_IN event it triggers).
+    const now = Date.now();
+    const last = lastRefresh.current;
+    if (last) {
+      if (last.failed && now - last.at < FAILURE_COOLDOWN_MS) {
+        const err: any = new Error('Authentication service is temporarily unavailable');
+        err.status = 503;
+        throw err;
+      }
+      if (!last.failed && now - last.at < REFRESH_DEDUPE_MS) {
+        return last.value;
+      }
+    }
+
     if (refreshInFlight.current) return refreshInFlight.current.promise;
     const promise = new Promise<User | null>((resolve) => {
       refreshInFlight.current = { promise, resolve };
@@ -36,28 +74,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await api.auth.me();
       const nextUser = res.success && res.data ? (res.data as User) : null;
       setUser(nextUser);
+      lastRefresh.current = { at: Date.now(), value: nextUser, failed: false };
       return nextUser;
-    } catch {
-      setUser(null);
-      return null;
+    } catch (err: any) {
+      if (isDefinitiveAuthFailure(err)) {
+        // Definitive: this identity is not authenticated on the backend.
+        setUser(null);
+        lastRefresh.current = { at: Date.now(), value: null, failed: false };
+        return null;
+      }
+      // Transient (429 / 5xx / network / timeout): keep the current user
+      // state; never log the user out because of a temporary error.
+      lastRefresh.current = { at: Date.now(), value: null, failed: true };
+      throw err;
     } finally {
       refreshInFlight.current = null;
     }
   }, []);
 
-  // Proactive token refresh - refresh 5 minutes before expiry
-  useEffect(() => {
-    if (!user) return;
-    const interval = setInterval(async () => {
-      try {
-        await refreshUser();
-      } catch {
-        // Silently fail - Supabase onAuthStateChange will handle actual expiry
-      }
-    }, 5 * 60 * 1000); // 5 minutes
-    return () => clearInterval(interval);
-  }, [user, refreshUser]);
-
+  // Session restoration runs exactly once on mount. There is deliberately NO
+  // periodic /api/auth/me polling here: Supabase's SDK already auto-refreshes
+  // the access token, and polling the backend only consumed the auth rate
+  // limit and produced the historical 429 lockout loop.
   useEffect(() => {
     let mounted = true;
     const supabase = getSupabaseClient();
@@ -71,7 +109,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        const nextUser = await refreshUser();
+        let nextUser: User | null = null;
+        try {
+          nextUser = await refreshUser();
+        } catch {
+          // Transient backend failure — retry once with a short delay before
+          // giving up. The Supabase session stays stored so any later event
+          // (or page load) can restore it; we never clear it here.
+          await sleep(1500);
+          try {
+            nextUser = await refreshUser();
+          } catch {
+            nextUser = null;
+          }
+        }
         if (mounted && nextUser) setUser(nextUser);
       } catch {
         if (mounted) setUser(null);
@@ -90,7 +141,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        void refreshUser().catch(() => setUser(null));
+        // Transient failures are deliberately swallowed — they must never
+        // sign the user out. Definitive failures already set user to null
+        // inside refreshUser.
+        void refreshUser().catch(() => undefined);
       }
     });
 
@@ -109,13 +163,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       if (error) throw error;
 
-      const nextUser = await refreshUser();
+      let nextUser: User | null = null;
+      try {
+        nextUser = await refreshUser();
+      } catch {
+        throw new Error('Authentication service is temporarily unavailable. Please try again in a moment.');
+      }
       if (!nextUser) throw new Error('No application account is linked to this identity.');
       toast.success(`Welcome back, ${nextUser.name}!`);
       return nextUser;
     } catch (error: any) {
       setUser(null);
-      toast.error(error.message || 'Sign-in failed');
+      const status = error?.status;
+      const message = isTransientAuthFailure(error) && status === 429
+        ? 'Too many authentication attempts. Please wait a moment and try again.'
+        : (error.message || 'Sign-in failed');
+      toast.error(message);
       throw error;
     } finally {
       setIsLoading(false);
@@ -170,7 +233,18 @@ export function AuthCallback() {
         if (!sessionData.session) throw new Error('No session found after callback. Please try signing in again.');
 
         // The session is confirmed — load the application user from the backend.
-        const nextUser = await refreshUser();
+        let nextUser: User | null = null;
+        try {
+          nextUser = await refreshUser();
+        } catch {
+          // Transient backend failure — retry once before deciding.
+          await sleep(1500);
+          try {
+            nextUser = await refreshUser();
+          } catch {
+            throw new Error('Authentication service is temporarily unavailable. Please try again in a moment.');
+          }
+        }
         if (!nextUser) throw new Error('No application account is linked to this identity.');
 
         if (!mounted) return;
@@ -178,8 +252,10 @@ export function AuthCallback() {
       } catch (error: any) {
         if (!mounted) return;
         toast.error(error.message || 'Unable to complete sign in');
-        await getSupabaseClient().auth.signOut();
-        clearAuthStorage();
+        if (isDefinitiveAuthFailure(error)) {
+          await getSupabaseClient().auth.signOut();
+          clearAuthStorage();
+        }
         window.location.replace('/login');
       }
     };

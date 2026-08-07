@@ -97,10 +97,10 @@ const CoursesManagerPage = lazy(() => import('./pages/admin/website/SiteCollecti
 
 // Loading fallback for lazy routes
 const RouteLoadingFallback = () => (
-  <div className="min-h-screen flex items-center justify-center bg-gray-50">
+  <div className="min-h-screen flex items-center justify-center bg-background">
     <div className="flex flex-col items-center gap-3">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600" />
-      <p className="text-sm text-gray-500">Loading...</p>
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-primary" />
+      <p className="text-sm text-muted-foreground">Loading...</p>
     </div>
   </div>
 );
@@ -112,20 +112,20 @@ const SuspenseWrapper = ({ children }: { children: React.ReactNode }) => (
 );
 
 const UnauthorizedPage = () => (
-  <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-    <div className="max-w-md rounded-xl bg-white p-8 text-center shadow-lg">
-      <h1 className="text-2xl font-semibold">Unauthorized</h1>
-      <p className="mt-2 text-sm text-gray-600">You do not have access to this area.</p>
+  <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="max-w-md rounded-xl bg-card p-8 text-center shadow-lg border">
+      <h1 className="text-2xl font-semibold text-foreground">Unauthorized</h1>
+      <p className="mt-2 text-sm text-muted-foreground">You do not have access to this area.</p>
       <Navigate to="/login" replace />
     </div>
   </div>
 );
 
 const AuthLoadingSpinner = () => (
-  <div className="min-h-screen flex items-center justify-center bg-gray-50">
+  <div className="min-h-screen flex items-center justify-center bg-background">
     <div className="flex flex-col items-center gap-3">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600" />
-      <p className="text-sm text-gray-500">Loading...</p>
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-primary" />
+      <p className="text-sm text-muted-foreground">Loading...</p>
     </div>
   </div>
 );

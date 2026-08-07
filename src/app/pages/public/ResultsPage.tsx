@@ -38,24 +38,24 @@ export const ResultsPage: React.FC = () => {
           <div className="space-y-10">
             {[...groups.entries()].map(([exam, rows]) => (
               <div key={exam}>
-                <h2 className="text-xl font-bold text-gray-900 mb-4">{exam}</h2>
+                <h2 className="text-xl font-bold text-foreground mb-4">{exam}</h2>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {rows.map((r) => (
-                    <article key={r.id} className="rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition-shadow">
+                    <article key={r.id} className="rounded-2xl border border-border shadow-sm p-5 hover:shadow-md transition-shadow bg-card">
                       <div className="flex items-center gap-4">
                         <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center shrink-0">
                           <Award className="h-6 w-6" />
                         </div>
                         <div className="min-w-0">
-                          <h3 className="font-bold text-gray-900 truncate">{r.studentName}</h3>
-                          <p className="text-xs text-gray-500">{r.classLevel || ''} {r.session ? `· ${r.session}` : ''}</p>
+                          <h3 className="font-bold text-foreground truncate">{r.studentName}</h3>
+                          <p className="text-xs text-muted-foreground">{r.classLevel || ''} {r.session ? `· ${r.session}` : ''}</p>
                         </div>
                       </div>
                       <div className="mt-4 grid grid-cols-3 gap-2 text-center">
                         {r.rank && (
-                          <div className="rounded-xl bg-blue-50 py-2">
-                            <p className="text-lg font-extrabold text-blue-700 leading-none">{r.rank}</p>
-                            <p className="text-[10px] uppercase tracking-wide text-blue-500 mt-1">Rank</p>
+                          <div className="rounded-xl bg-primary/10 py-2">
+                            <p className="text-lg font-extrabold text-primary leading-none">{r.rank}</p>
+                            <p className="text-[10px] uppercase tracking-wide text-primary/80 mt-1">Rank</p>
                           </div>
                         )}
                         {r.percentage !== null && r.percentage !== undefined && (
@@ -71,8 +71,8 @@ export const ResultsPage: React.FC = () => {
                           </div>
                         )}
                       </div>
-                      {r.description && <p className="mt-3 text-sm text-gray-500">{r.description}</p>}
-                      <div className="mt-3 flex items-center justify-between text-xs text-gray-400">
+                      {r.description && <p className="mt-3 text-sm text-muted-foreground">{r.description}</p>}
+                      <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                         <span className="inline-flex items-center gap-1"><Star className="h-3 w-3 text-amber-400 fill-amber-400" /> {r.resultType === 'top_performer' ? 'Top performer' : 'Achievement'}</span>
                         {r.displayDate && <span>{formatDate(r.displayDate)}</span>}
                       </div>

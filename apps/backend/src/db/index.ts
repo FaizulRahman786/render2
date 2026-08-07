@@ -11,6 +11,7 @@
 //
 // The client is a singleton to avoid exhausting the connection pool.
 
+import '../config/env.js';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from './schema.js';

@@ -34,22 +34,22 @@ export const FaqsPage: React.FC = () => {
               const faqs = items.filter((f) => f.category === cat);
               return (
                 <div key={cat}>
-                  <h2 className="text-lg font-bold text-gray-900 mb-3 capitalize">{cat}</h2>
+                  <h2 className="text-lg font-bold text-foreground mb-3 capitalize">{cat}</h2>
                   <div className="space-y-3">
                     {faqs.map((f) => {
                       const id = f.id ?? f.question;
                       const isOpen = open === id;
                       return (
-                        <div key={id} className={`rounded-2xl border transition-colors ${isOpen ? 'border-blue-200 bg-blue-50/40' : 'border-gray-100 bg-white shadow-sm'}`}>
+                        <div key={id} className={`rounded-2xl border transition-colors ${isOpen ? 'border-primary/30 bg-primary/5' : 'border-border bg-card shadow-sm'}`}>
                           <button
                             type="button"
                             onClick={() => setOpen(isOpen ? null : id)}
                             className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left"
                           >
-                            <span className="font-semibold text-gray-900">{f.question}</span>
-                            <ChevronDown className={`h-5 w-5 text-gray-400 shrink-0 transition-transform ${isOpen ? 'rotate-180 text-blue-600' : ''}`} />
+                            <span className="font-semibold text-foreground">{f.question}</span>
+                            <ChevronDown className={`h-5 w-5 text-muted-foreground shrink-0 transition-transform ${isOpen ? 'rotate-180 text-primary' : ''}`} />
                           </button>
-                          {isOpen && <p className="px-5 pb-5 text-sm text-gray-600 leading-relaxed">{f.answer}</p>}
+                          {isOpen && <p className="px-5 pb-5 text-sm text-muted-foreground leading-relaxed">{f.answer}</p>}
                         </div>
                       );
                     })}
@@ -64,16 +64,16 @@ export const FaqsPage: React.FC = () => {
               const id = f.id ?? f.question;
               const isOpen = open === id;
               return (
-                <div key={id} className={`rounded-2xl border transition-colors ${isOpen ? 'border-blue-200 bg-blue-50/40' : 'border-gray-100 bg-white shadow-sm'}`}>
+                <div key={id} className={`rounded-2xl border transition-colors ${isOpen ? 'border-primary/30 bg-primary/5' : 'border-border bg-card shadow-sm'}`}>
                   <button
                     type="button"
                     onClick={() => setOpen(isOpen ? null : id)}
                     className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left"
                   >
-                    <span className="font-semibold text-gray-900">{f.question}</span>
-                    <ChevronDown className={`h-5 w-5 text-gray-400 shrink-0 transition-transform ${isOpen ? 'rotate-180 text-blue-600' : ''}`} />
+                    <span className="font-semibold text-foreground">{f.question}</span>
+                    <ChevronDown className={`h-5 w-5 text-muted-foreground shrink-0 transition-transform ${isOpen ? 'rotate-180 text-primary' : ''}`} />
                   </button>
-                  {isOpen && <p className="px-5 pb-5 text-sm text-gray-600 leading-relaxed">{f.answer}</p>}
+                  {isOpen && <p className="px-5 pb-5 text-sm text-muted-foreground leading-relaxed">{f.answer}</p>}
                 </div>
               );
             })}

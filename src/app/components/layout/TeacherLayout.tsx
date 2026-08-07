@@ -31,6 +31,7 @@ import {
 import { cn } from '../../lib/utils';
 import { NotificationBell } from './NotificationBell';
 import { useSeo } from '../public/useSeo';
+import { ThemeToggle } from '../ui/theme-toggle';
 
 const navigation = [
   { name: 'Dashboard', href: '/teacher', icon: LayoutDashboard },
@@ -58,7 +59,7 @@ export const TeacherLayout: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
@@ -70,7 +71,7 @@ export const TeacherLayout: React.FC = () => {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed top-0 left-0 z-50 h-screen w-64 bg-white border-r transform transition-transform duration-300 lg:translate-x-0',
+          'fixed top-0 left-0 z-50 h-screen w-64 bg-card border-r transform transition-transform duration-300 lg:translate-x-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -79,9 +80,9 @@ export const TeacherLayout: React.FC = () => {
           <div className="flex items-center justify-between p-6 border-b">
             <div className="flex items-center space-x-2">
               <div className="p-2 bg-gradient-to-br from-green-600 to-teal-600 rounded-lg">
-                <GraduationCap className="h-6 w-6 text-white" />
+                <GraduationCap className="h-6 w-6 text-primary-foreground" />
               </div>
-              <span className="text-xl font-bold">Teacher Portal</span>
+              <span className="text-xl font-bold text-foreground">Teacher Portal</span>
             </div>
             <Button
               variant="ghost"
@@ -104,8 +105,8 @@ export const TeacherLayout: React.FC = () => {
                   className={cn(
                     'flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors',
                     isActive
-                      ? 'bg-gradient-to-r from-green-600 to-teal-600 text-white'
-                      : 'text-gray-700 hover:bg-gray-100'
+                      ? 'bg-gradient-to-r from-green-600 to-teal-600 text-primary-foreground'
+                      : 'text-foreground hover:bg-accent'
                   )}
                   onClick={() => setSidebarOpen(false)}
                 >
@@ -121,7 +122,7 @@ export const TeacherLayout: React.FC = () => {
       {/* Main content */}
       <div className="lg:pl-64">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 bg-white border-b">
+        <header className="sticky top-0 z-30 bg-card border-b">
           <div className="flex items-center justify-between px-4 py-4">
             <Button
               variant="ghost"
@@ -135,6 +136,7 @@ export const TeacherLayout: React.FC = () => {
             <div className="flex-1 lg:ml-0" />
 
             <div className="flex items-center space-x-4">
+              <ThemeToggle />
               <NotificationBell />
 
               {/* User menu */}
@@ -142,12 +144,12 @@ export const TeacherLayout: React.FC = () => {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="flex items-center space-x-2">
                     <Avatar className="h-8 w-8">
-                      <AvatarFallback className="bg-gradient-to-br from-green-600 to-teal-600 text-white">
+                      <AvatarFallback className="bg-gradient-to-br from-green-600 to-teal-600 text-primary-foreground">
                         {(user?.name?.[0] ?? '?').toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="hidden md:block text-left">
-                      <p className="text-sm font-medium">{user?.name}</p>
+                      <p className="text-sm font-medium text-foreground">{user?.name}</p>
                       <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
                     </div>
                   </Button>
@@ -164,7 +166,7 @@ export const TeacherLayout: React.FC = () => {
                     Settings
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+                  <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                     <LogOut className="mr-2 h-4 w-4" />
                     Logout
                   </DropdownMenuItem>

@@ -26,6 +26,9 @@ export const AchievementsPage: React.FC = () => {
 
   const filters = ['', ...CATEGORIES];
 
+  const activeBtn = 'bg-primary text-primary-foreground shadow-sm';
+  const inactiveBtn = 'bg-muted text-muted-foreground hover:bg-muted/80';
+
   return (
     <div>
       <PageHero title="Our Achievements" subtitle="Every milestone is a story of hard work, guidance and determination. Here are some we are proud of." badge="Achievements" />
@@ -36,7 +39,7 @@ export const AchievementsPage: React.FC = () => {
               key={c || 'all'}
               type="button"
               onClick={() => setCategory(c)}
-              className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${category === c ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${category === c ? activeBtn : inactiveBtn}`}
             >
               {c === '' ? 'All' : CATEGORY_LABEL[c]}
             </button>
@@ -52,28 +55,28 @@ export const AchievementsPage: React.FC = () => {
             {items.map((a) => {
               const Icon = LEVEL_ICON[a.level] || Trophy;
               return (
-                <article key={a.id} className="group rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col">
+                <article key={a.id} className="group rounded-2xl border border-border shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col bg-card">
                   {a.imageUrl ? (
                     <img src={a.imageUrl} alt={a.title} loading="lazy" className="h-44 w-full object-cover" />
                   ) : (
-                    <div className="h-44 w-full bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
-                      <Icon className="h-12 w-12 text-blue-200" />
+                    <div className="h-44 w-full bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
+                      <Icon className="h-12 w-12 text-primary/50" />
                     </div>
                   )}
                   <div className="p-5 flex-1 flex flex-col">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 rounded-full px-2.5 py-0.5">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-primary bg-primary/10 rounded-full px-2.5 py-0.5">
                         {CATEGORY_LABEL[a.category] || a.category}
                       </span>
-                      {a.level && <span className="text-[11px] font-semibold text-gray-400 uppercase">{a.level}</span>}
-                      {a.achievementDate && <span className="text-xs text-gray-400 ml-auto">{formatDate(a.achievementDate)}</span>}
+                      {a.level && <span className="text-[11px] font-semibold text-muted-foreground uppercase">{a.level}</span>}
+                      {a.achievementDate && <span className="text-xs text-muted-foreground ml-auto">{formatDate(a.achievementDate)}</span>}
                     </div>
-                    <h3 className="mt-2.5 font-bold text-gray-900 leading-snug">{a.title}</h3>
-                    {a.description && <p className="mt-1.5 text-sm text-gray-500 leading-relaxed flex-1">{a.description}</p>}
+                    <h3 className="mt-2.5 font-bold text-foreground leading-snug">{a.title}</h3>
+                    {a.description && <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed flex-1">{a.description}</p>}
                     {(a.studentName || a.awardOrganization) && (
-                      <p className="mt-3 pt-3 border-t border-gray-100 text-sm">
-                        {a.studentName && <span className="font-semibold text-gray-800">{a.studentName}</span>}
-                        {a.awardOrganization && <span className="text-gray-500"> · {a.awardOrganization}</span>}
+                      <p className="mt-3 pt-3 border-t border-border text-sm">
+                        {a.studentName && <span className="font-semibold text-foreground">{a.studentName}</span>}
+                        {a.awardOrganization && <span className="text-muted-foreground"> · {a.awardOrganization}</span>}
                       </p>
                     )}
                   </div>

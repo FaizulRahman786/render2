@@ -27,7 +27,9 @@ export const TeacherProfilePage: React.FC = () => {
     setSaving(true);
     try {
       await api.teacher.updateProfile({ name: nameForm.name, phone: nameForm.phone });
-      await refreshUser();
+      // Refreshing the cached user is best-effort: a transient failure here
+      // must not surface as a failed profile update.
+      await refreshUser().catch(() => undefined);
       toast.success('Profile updated successfully');
     } catch (err: any) { toast.error(err.message); } finally { setSaving(false); }
   };

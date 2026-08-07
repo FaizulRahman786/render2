@@ -1,25 +1,13 @@
 import * as React from "react";
 import { Toaster as Sonner, ToasterProps } from "sonner";
+import { useTheme } from "../../contexts/ThemeContext";
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  // Detect system theme without next-themes (this is a Vite app, not Next.js)
-  const [theme, setTheme] = React.useState<"light" | "dark">(() => {
-    if (typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      return "dark";
-    }
-    return "light";
-  });
-
-  React.useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = (e: MediaQueryListEvent) => setTheme(e.matches ? "dark" : "light");
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
+  const { resolvedTheme } = useTheme();
 
   return (
     <Sonner
-      theme={theme}
+      theme={resolvedTheme}
       className="toaster group"
       style={
         {

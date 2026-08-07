@@ -43,8 +43,8 @@ export const HomePage: React.FC = () => {
   if (loading || !data) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-24 space-y-6">
-        <div className="h-64 bg-gray-100 rounded-3xl animate-pulse" />
-        <div className="grid grid-cols-3 gap-6"><div className="h-20 bg-gray-100 rounded-xl animate-pulse" /><div className="h-20 bg-gray-100 rounded-xl animate-pulse" /><div className="h-20 bg-gray-100 rounded-xl animate-pulse" /></div>
+        <div className="h-64 bg-muted rounded-3xl animate-pulse" />
+        <div className="grid grid-cols-3 gap-6"><div className="h-20 bg-muted rounded-xl animate-pulse" /><div className="h-20 bg-muted rounded-xl animate-pulse" /><div className="h-20 bg-muted rounded-xl animate-pulse" /></div>
       </div>
     );
   }
@@ -95,17 +95,17 @@ export const HomePage: React.FC = () => {
 
       {/* Stats */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8 relative">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white rounded-2xl shadow-lg border border-gray-100 p-6 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-card rounded-2xl shadow-lg border border-border p-6 divide-y sm:divide-y-0 sm:divide-x divide-border">
           {[
             { label: 'Students Enrolled', value: data.stats?.students ?? 0, icon: Users },
             { label: 'Expert Faculty', value: data.stats?.teachers ?? 0, icon: UsersRound },
             { label: 'Programs Offered', value: data.stats?.courses ?? 0, icon: GraduationCap },
           ].map((s) => (
             <div key={s.label} className="flex items-center gap-4 justify-center py-3 sm:py-0">
-              <div className="p-3 rounded-xl bg-blue-50 text-blue-700"><s.icon className="h-6 w-6" /></div>
+              <div className="p-3 rounded-xl bg-primary/10 text-primary"><s.icon className="h-6 w-6" /></div>
               <div>
-                <div className="text-2xl font-extrabold text-gray-900">{Number(s.value).toLocaleString('en-IN')}+</div>
-                <div className="text-sm text-gray-500">{s.label}</div>
+                <div className="text-2xl font-extrabold text-foreground">{Number(s.value).toLocaleString('en-IN')}+</div>
+                <div className="text-sm text-muted-foreground">{s.label}</div>
               </div>
             </div>
           ))}
@@ -117,25 +117,25 @@ export const HomePage: React.FC = () => {
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-16">
           <div className="flex items-end justify-between mb-6">
             <div>
-              <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Popular Courses</h2>
-              <p className="text-gray-500 mt-1">Programs our students love the most</p>
+              <h2 className="text-2xl md:text-3xl font-bold text-foreground">Popular Courses</h2>
+              <p className="text-muted-foreground mt-1">Programs our students love the most</p>
             </div>
-            <Link to={pageHref('courses', '/courses')} className="text-sm font-semibold text-blue-600 inline-flex items-center gap-1 hover:gap-2 transition-all">
+            <Link to={pageHref('courses', '/courses')} className="text-sm font-semibold text-primary inline-flex items-center gap-1 hover:gap-2 transition-all">
               View all <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {courses.map((c) => (
-              <Link key={c._id || c.id} to={pageHref('courses', '/courses')} className="group bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all overflow-hidden">
+              <Link key={c._id || c.id} to={pageHref('courses', '/courses')} className="group bg-card rounded-2xl border border-border shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all overflow-hidden">
                 <div className="h-36 bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-                  <GraduationCap className="h-10 w-10 text-white/80 group-hover:scale-110 transition-transform" />
+                  <GraduationCap className="h-10 w-10 text-primary-foreground/80 group-hover:scale-110 transition-transform" />
                 </div>
                 <div className="p-5">
-                  <h3 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{c.name || 'Course'}</h3>
-                  <p className="text-sm text-gray-500 mt-1.5 line-clamp-2">{c.description || 'Comprehensive classroom + test series program.'}</p>
+                  <h3 className="font-bold text-foreground group-hover:text-primary transition-colors">{c.name || 'Course'}</h3>
+                  <p className="text-sm text-muted-foreground mt-1.5 line-clamp-2">{c.description || 'Comprehensive classroom + test series program.'}</p>
                   <div className="flex items-center justify-between mt-4">
-                    <span className="text-sm font-bold text-blue-700">{formatMoney(c.fee ?? c.price)}</span>
-                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{c.classLevel || 'All levels'}</span>
+                    <span className="text-sm font-bold text-primary">{formatMoney(c.fee ?? c.price)}</span>
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{c.classLevel || 'All levels'}</span>
                   </div>
                 </div>
               </Link>
@@ -147,15 +147,15 @@ export const HomePage: React.FC = () => {
       {/* Why choose us */}
       {whyUs.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-20">
-          <h2 className="text-2xl md:text-3xl font-bold text-gray-900 text-center">{whyUsTitle}</h2>
+          <h2 className="text-2xl md:text-3xl font-bold text-foreground text-center">{whyUsTitle}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
             {whyUs.map((w: any, i: number) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-shadow">
-                <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center mb-4">
+              <div key={i} className="bg-card rounded-2xl border border-border p-6 shadow-sm hover:shadow-md transition-shadow">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-4">
                   <CheckCircle2 className="h-5 w-5" />
                 </div>
-                <h3 className="font-semibold text-gray-900">{w?.title || (Array.isArray(w) ? w[0] : '') || `Feature ${i + 1}`}</h3>
-                <p className="text-sm text-gray-500 mt-1.5">{w?.description || (Array.isArray(w) ? w[1] : '') || ''}</p>
+                <h3 className="font-semibold text-foreground">{w?.title || (Array.isArray(w) ? w[0] : '') || `Feature ${i + 1}`}</h3>
+                <p className="text-sm text-muted-foreground mt-1.5">{w?.description || (Array.isArray(w) ? w[1] : '') || ''}</p>
               </div>
             ))}
           </div>
@@ -168,19 +168,19 @@ export const HomePage: React.FC = () => {
           {(events.length > 0) && (
             <div>
               <div className="flex items-end justify-between mb-5">
-                <h2 className="text-2xl font-bold text-gray-900">Upcoming Events</h2>
-                <Link to={pageHref('events', '/events')} className="text-sm font-semibold text-blue-600 hover:underline">View all</Link>
+                <h2 className="text-2xl font-bold text-foreground">Upcoming Events</h2>
+                <Link to={pageHref('events', '/events')} className="text-sm font-semibold text-primary hover:underline">View all</Link>
               </div>
               <div className="space-y-4">
                 {events.map((e) => (
-                  <div key={e._id || e.id} className="flex items-center gap-4 bg-gray-50 hover:bg-blue-50 rounded-xl p-4 transition-colors">
-                    <div className="shrink-0 w-14 h-14 rounded-xl bg-blue-600 text-white flex flex-col items-center justify-center">
+                  <div key={e._id || e.id} className="flex items-center gap-4 bg-muted hover:bg-accent rounded-xl p-4 transition-colors">
+                    <div className="shrink-0 w-14 h-14 rounded-xl bg-primary text-primary-foreground flex flex-col items-center justify-center">
                       <span className="text-lg font-extrabold leading-none">{new Date(e.eventDate).getDate()}</span>
                       <span className="text-[10px] uppercase tracking-wide">{new Date(e.eventDate).toLocaleString('en-IN', { month: 'short' })}</span>
                     </div>
                     <div className="min-w-0">
-                      <h3 className="font-semibold text-gray-900 truncate">{e.name}</h3>
-                      <p className="text-sm text-gray-500 flex items-center gap-1 mt-0.5"><Clock className="h-3.5 w-3.5" />{e.startTime ? `${e.startTime}` : formatDate(e.eventDate)}</p>
+                      <h3 className="font-semibold text-foreground truncate">{e.name}</h3>
+                      <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5"><Clock className="h-3.5 w-3.5" />{e.startTime ? `${e.startTime}` : formatDate(e.eventDate)}</p>
                     </div>
                   </div>
                 ))}
@@ -190,16 +190,16 @@ export const HomePage: React.FC = () => {
           {notices.length > 0 && (
             <div>
               <div className="flex items-end justify-between mb-5">
-                <h2 className="text-2xl font-bold text-gray-900">Latest Notices</h2>
-                <Link to={pageHref('notices', '/notices')} className="text-sm font-semibold text-blue-600 hover:underline">View all</Link>
+                <h2 className="text-2xl font-bold text-foreground">Latest Notices</h2>
+                <Link to={pageHref('notices', '/notices')} className="text-sm font-semibold text-primary hover:underline">View all</Link>
               </div>
               <div className="space-y-3">
                 {notices.map((n) => (
-                  <Link key={n._id || n.id} to={pageHref('notices', '/notices')} className="flex items-center gap-3 bg-white border border-gray-100 rounded-xl p-4 hover:border-blue-300 hover:shadow-sm transition-all">
-                    <Megaphone className="h-5 w-5 text-blue-600 shrink-0" />
+                  <Link key={n._id || n.id} to={pageHref('notices', '/notices')} className="flex items-center gap-3 bg-card border border-border rounded-xl p-4 hover:border-primary hover:shadow-sm transition-all">
+                    <Megaphone className="h-5 w-5 text-primary shrink-0" />
                     <div className="min-w-0">
-                      <h3 className="font-semibold text-gray-900 text-sm truncate">{n.title}</h3>
-                      <p className="text-xs text-gray-500 mt-0.5">{formatDate(n.createdAt || n.date)}</p>
+                      <h3 className="font-semibold text-foreground text-sm truncate">{n.title}</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">{formatDate(n.createdAt || n.date)}</p>
                     </div>
                   </Link>
                 ))}
