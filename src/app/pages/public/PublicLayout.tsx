@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { fetchPublicConfig, fetchPublicStatus, previewHref, Institute, NavItem } from './publicData';
 import { useSeo, applySeoDefaults } from '../../components/public/useSeo';
 import { ThemeToggle } from '../../components/ui/theme-toggle';
+import { FloatingActionButton } from '../../components/shared/FloatingActionButton';
 
 // FALLBACK_NAV is used only when the site profile is still loading or the
 // /config fetch fails — the live menu is always what the admin configured.
@@ -241,18 +242,13 @@ export const PublicLayout: React.FC<{ children: React.ReactNode }> = ({ children
         </div>
       </footer>
 
-      {/* WhatsApp widget — floats above content, configured from site settings */}
-      {wa && wa.number && (
-        <a
-          href={`https://wa.me/${wa.number.replace(/[^0-9]/g, '')}${wa.message ? `?text=${encodeURIComponent(wa.message)}` : ''}`}
-          target="_blank"
-          rel="noreferrer"
-          aria-label="Chat on WhatsApp"
-          className="fixed bottom-5 right-5 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg hover:scale-105 transition-transform"
-        >
-          <WhatsAppIcon className="h-7 w-7" />
-        </a>
-      )}
+      {/* Floating Action Button — Quick Actions Speed Dial */}
+      <FloatingActionButton
+        whatsappNumber={wa?.number}
+        whatsappMessage={wa?.message}
+        phone={status.institute?.phone}
+        contactHref="/contact"
+      />
     </div>
   );
 };
