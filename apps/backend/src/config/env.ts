@@ -2,14 +2,13 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export const config = {
-  port: parseInt(process.env.BACKEND_PORT || process.env.PORT || '3001'),
+  get port() { return parseInt(process.env.TEST_PORT || process.env.BACKEND_PORT || process.env.PORT || '3001'); },
   nodeEnv: process.env.NODE_ENV || 'development',
   authProvider: process.env.AUTH_PROVIDER || 'supabase',
   supabaseUrl: process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '',
   supabaseAnonKey: process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '',
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5000,http://localhost:5002,http://127.0.0.1:5000,http://127.0.0.1:5002',
-  // Must be explicitly set to 'true' to enable offline mock mode. Never enable in production.
-  enableAuthMock: process.env.ENABLE_AUTH_MOCK === 'true',
+  get enableAuthMock() { return process.env.ENABLE_AUTH_MOCK === 'true'; },
   // Backend-only Supabase admin key used for account provisioning (admin.createUser).
   // NEVER exposed to the frontend. Optional at startup; required only for provisioning endpoints.
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
