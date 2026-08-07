@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { ArrowLeft, Save, Send, Archive, Copy, FilePlus2, Trash2, ShieldCheck, Monitor, Tablet, Smartphone, History, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, Send, Archive, Copy, FilePlus2, Trash2, ShieldCheck, Monitor, Tablet, Smartphone, History, Loader2, ExternalLink } from 'lucide-react';
 import { api, publicSite } from '../../../lib/api';
 import { toast } from 'sonner';
 import { Button } from '../../../components/ui/button';
@@ -457,13 +457,27 @@ export const CustomPageEditorPage: React.FC = () => {
               <p className="text-sm font-semibold text-gray-700">
                 Preview — {meta.status === 'published' ? 'published version (live)' : 'your draft (only you can see this)'}
               </p>
-              <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5">
-                {[{ k: 'desktop', i: Monitor }, { k: 'tablet', i: Tablet }, { k: 'mobile', i: Smartphone }].map((d) => (
-                  <button key={d.k} type="button" onClick={() => setDevice(d.k as any)}
-                    className={cn('p-1.5 rounded-md', device === d.k ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100')}>
-                    <d.i className="h-4 w-4" />
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5">
+                  {[{ k: 'desktop', i: Monitor }, { k: 'tablet', i: Tablet }, { k: 'mobile', i: Smartphone }].map((d) => (
+                    <button key={d.k} type="button" onClick={() => setDevice(d.k as any)}
+                      className={cn('p-1.5 rounded-md', device === d.k ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100')}>
+                      <d.i className="h-4 w-4" />
+                    </button>
+                  ))}
+                </div>
+                {previewSrc && (
+                  <a
+                    href={previewSrc}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-1.5 rounded-md border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 flex items-center gap-1 text-xs font-medium transition-colors"
+                    title="Open preview in new tab"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Open tab</span>
+                  </a>
+                )}
               </div>
             </div>
             <div className="flex justify-center bg-gray-100 rounded-xl p-4">
