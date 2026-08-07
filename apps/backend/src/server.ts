@@ -54,6 +54,8 @@ app.use((req, res, next) => {
 // Sentry request handler (must be before other middleware)
 app.use(sentryMiddleware);
 
+const allowedOrigins = (config.corsOrigin || '').split(',').map((origin) => origin.trim()).filter(Boolean);
+
 // Security headers
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -65,7 +67,7 @@ app.use(helmet({
       imgSrc: ["'self'", 'data:', 'https:'],
       fontSrc: ["'self'", 'https:'],
       connectSrc: ["'self'"],
-      frameAncestors: ["'self'"],
+      frameAncestors: ["'self'", ...allowedOrigins],
     },
   },
   frameguard: false,
@@ -78,7 +80,6 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-const allowedOrigins = (config.corsOrigin || '').split(',').map((origin) => origin.trim()).filter(Boolean);
 // CORS runs BEFORE rate limiting so cross-origin OPTIONS preflights are answered
 // by the `cors` middleware and never consume the rate-limit budget. The auth
 // limiters below additionally skip OPTIONS as defense-in-depth.

@@ -33,6 +33,8 @@ import { asyncHandler, ApiError } from '../middleware/error.js';
 import { emitToRole } from '../ws/wsManager.js';
 import { config } from '../config/env.js';
 
+const allowedOrigins = (config.corsOrigin || '').split(',').map((origin) => origin.trim()).filter(Boolean);
+
 const router: ExpressRouter = Router();
 
 // -- Settings helpers ---------------------------------------------------------
@@ -672,7 +674,8 @@ router.get('/custom/:slug/files/*path', asyncHandler(async (req, res) => {
   res.set('Content-Type', type);
   res.set('X-Content-Type-Options', 'nosniff');
   res.set('Cache-Control', pageData.status === 'published' ? 'public, max-age=300' : 'no-store');
-  res.set('Content-Security-Policy', "frame-ancestors 'self'; sandbox allow-scripts allow-same-origin allow-forms allow-modals allow-popups");
+  const frameAncestorsStr = ["'self'", ...allowedOrigins].join(' ');
+  res.set('Content-Security-Policy', `frame-ancestors ${frameAncestorsStr}; sandbox allow-scripts allow-same-origin allow-forms allow-modals allow-popups`);
   res.send(file.content);
 }));
 
